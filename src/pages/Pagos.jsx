@@ -21,9 +21,10 @@ export default function PagosPage() {
       ingreso: acc.ingreso + r.profit.price,
       costo: acc.costo + r.profit.costoDirecto,
       personal: acc.personal + r.profit.staffCost,
+      fijos: acc.fijos + r.profit.fixedCosts,
       margen: acc.margen + r.profit.margen,
     }),
-    { ingreso: 0, costo: 0, personal: 0, margen: 0 }
+    { ingreso: 0, costo: 0, personal: 0, fijos: 0, margen: 0 }
   );
 
   const saveRef = () => {
@@ -90,7 +91,7 @@ export default function PagosPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Evento</th><th className="right">Ingreso</th><th className="right">Costo directo</th><th className="right">Personal</th><th className="right">Costo total</th><th className="right">Margen</th><th>%</th>
+                <th>Evento</th><th className="right">Ingreso</th><th className="right">Costo directo</th><th className="right">Personal</th><th className="right">Costos fijos</th><th className="right">Costo total</th><th className="right">Margen</th><th>%</th>
               </tr>
             </thead>
             <tbody>
@@ -100,6 +101,7 @@ export default function PagosPage() {
                   <td className="right">{money(profit.price)}</td>
                   <td className="right">{money(profit.costoDirecto)}</td>
                   <td className="right">{money(profit.staffCost)}</td>
+                  <td className="right">{money(profit.fixedCosts)}</td>
                   <td className="right">{money(profit.costoTotal)}</td>
                   <td className={`right ${profit.margen >= 0 ? "tone-green" : "tone-red"}`}><strong>{money(profit.margen)}</strong></td>
                   <td>
@@ -117,7 +119,8 @@ export default function PagosPage() {
                 <td className="right"><strong>{money(totals.ingreso)}</strong></td>
                 <td className="right">{money(totals.costo)}</td>
                 <td className="right">{money(totals.personal)}</td>
-                <td className="right">{money(totals.costo + totals.personal)}</td>
+                <td className="right">{money(totals.fijos)}</td>
+                <td className="right">{money(totals.costo + totals.personal + totals.fijos)}</td>
                 <td className={`right ${totals.margen >= 0 ? "tone-green" : "tone-red"}`}><strong>{money(totals.margen)}</strong></td>
                 <td><strong>{totals.ingreso ? Math.round((totals.margen / totals.ingreso) * 100) : 0}%</strong></td>
               </tr>

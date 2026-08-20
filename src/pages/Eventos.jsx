@@ -47,6 +47,7 @@ export function EventosPage() {
       notes: "",
       specials: [],
       shopping: { overrides: {}, manual: [], removed: [] },
+      fixedCosts: [],
       modules: configFromMenu(menu),
     });
     setNuevo(false);
@@ -354,9 +355,35 @@ function SpecialForm({ onSubmit, onCancel }) {
   );
 }
 
+function FixedCostForm({ onSubmit, onCancel }) {
+  const [form, setForm] = useState({ label: "", amount: "" });
+  const valid = form.label.trim() !== "" && Number(form.amount) > 0;
+  const save = () => {
+    if (!valid) return;
+    onSubmit({ id: uid("fc"), label: form.label.trim(), amount: clamp(form.amount, 0) });
+  };
+  return (
+    <div className="form">
+      <div className="grid-2">
+        <Field label="Concepto">
+          <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Ej. Asada, traslado, alquiler de salón" />
+        </Field>
+        <Field label="Monto ($)">
+          <Input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" />
+        </Field>
+      </div>
+      <div className="form-actions">
+        <Btn onClick={save} disabled={!valid}>Agregar costo</Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+}
+
 function ModuleEditor({ event }) {
   const { db, add, remove, patch, setSettings } = useStore();
   const [nuevoSpecial, setNuevoSpecial] = useState(false);
+  const [nuevoCosto, setNuevoCosto] = useState(false);
   const patchModule = (key, changes) =>
     patch("events", event.id, { modules: { ...event.modules, [key]: { ...event.modules[key], ...changes } } });
 
@@ -369,6 +396,15 @@ function ModuleEditor({ event }) {
 
   const removeSpecial = (id) => {
     patch("events", event.id, { specials: (event.specials || []).filter((x) => x.id !== id) });
+  };
+
+  const addCosto = (data) => {
+    patch("events", event.id, { fixedCosts: [...(event.fixedCosts || []), data] });
+    setNuevoCosto(false);
+  };
+
+  const removeCosto = (id) => {
+    patch("events", event.id, { fixedCosts: (event.fixedCosts || []).filter((x) => x.id !== id) });
   };
 
   const dishesFor = (mod) => db.dishes.filter((d) => d.module === mod);
@@ -513,6 +549,47 @@ function ModuleEditor({ event }) {
 
         <Modal open={nuevoSpecial} onClose={() => setNuevoSpecial(false)} title="Agregar plato exclusivo">
           <SpecialForm onSubmit={addSpecial} onCancel={() => setNuevoSpecial(false)} />
+        </Modal>
+      </Card>
+
+      <Card
+        title="Costos fijos (no de ingrediente)"
+        actions={<Btn icon="plus" onClick={() => setNuevoCosto(true)}>Agregar costo</Btn>}
+      >
+        <p className="muted">
+          Costos del evento que no son insumos (asada, traslado, alquiler de salón, vajilla extra). Suma al costo total y reduce el margen; no se traslada al precio del cliente.
+        </p>
+        {(event.fixedCosts || []).length > 0 ? (
+          <div className="table-wrap">
+            <table className="table table-sm">
+              <thead>
+                <tr><th>Concepto</th><th className="right">Monto</th><th /></tr>
+              </thead>
+              <tbody>
+                {(event.fixedCosts || []).map((f) => (
+                  <tr key={f.id}>
+                    <td><strong>{f.label}</strong></td>
+                    <td className="right">{money(f.amount)}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="icon-btn danger" onClick={() => removeCosto(f.id)} aria-label={`Quitar ${f.label}`}><Icon name="trash" size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                <tr className="tfoot-row">
+                  <td><strong>Total costos fijos</strong></td>
+                  <td className="right"><strong>{money((event.fixedCosts || []).reduce((s, f) => s + (Number(f.amount) || 0), 0))}</strong></td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">Sin costos fijos cargados para este evento.</p>
+        )}
+        <Modal open={nuevoCosto} onClose={() => setNuevoCosto(false)} title="Agregar costo fijo">
+          <FixedCostForm onSubmit={addCosto} onCancel={() => setNuevoCosto(false)} />
         </Modal>
       </Card>
 

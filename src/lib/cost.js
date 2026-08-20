@@ -282,12 +282,14 @@ export function eventProfit(event, db) {
   const staffCost = db.assignments
     .filter((x) => x.eventId === event.id)
     .reduce((s, x) => s + (x.pay || 0), 0);
+  const fixedCosts = (event.fixedCosts || []).reduce((s, f) => s + Math.max(0, Number(f.amount) || 0), 0);
   const costoDirecto = a.cost;
-  const costoTotal = costoDirecto + staffCost;
+  const costoTotal = costoDirecto + staffCost + fixedCosts;
   const margen = a.price - costoTotal;
   return {
     ...a,
     staffCost,
+    fixedCosts,
     costoDirecto,
     costoTotal,
     margen,

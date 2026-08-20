@@ -214,6 +214,7 @@ export function makeSeed() {
       menuId: "m1v1", señaDate: "2026-08-20", seña: 100000, confirmDate: "2026-08-20",
       notes: "Cumpleaños en el quincho de la familia. Confirmar cantidad final el 27/08.",
       specials: [],
+      fixedCosts: [],
       modules: {
         entrada: { on: true, dishId: "d_emp1" },
         principal: { on: true, dishId: "d_pri1" },
@@ -282,7 +283,7 @@ export function makeSeed() {
   };
 
   return {
-    version: 5,
+    version: 6,
     ingredients,
     recipes,
     dishes,
