@@ -1,6 +1,6 @@
 import { MODULE_DEFS } from "../data/seed.js";
 
-const CURRENT = 2;
+const CURRENT = 3;
 
 function moduleKind(key) {
   return MODULE_DEFS.find((m) => m.key === key)?.kind || "dish";
@@ -54,6 +54,32 @@ function normalizeV1Modules(modules) {
   return normalizeModuleConfig(mods);
 }
 
+// v2 -> v3: se elimina el concepto de variante. Cada variante de un menú pasa a ser un menú
+// propio (id = id de la variante) y el evento se re-mapea. Un módulo de menú puede llegar como
+// ref plana (string / array) o como config ({on, ...}) — se normaliza a config en ambos casos.
+function valueToConfig(key, v) {
+  const kind = moduleKind(key);
+  if (v === undefined || v === null || v === "") {
+    return kind === "dish" ? { on: false, dishId: null } : kind === "recipes" ? { on: false, recipeIds: [] } : { on: false, dishIds: [] };
+  }
+  if (typeof v === "object" && v !== null && "on" in v) {
+    if (kind === "dish") return { on: !!v.on, dishId: v.dishId || null };
+    if (kind === "recipes") return { on: !!v.on, recipeIds: v.recipeIds || [] };
+    return { on: !!v.on, dishIds: v.dishIds || [] };
+  }
+  if (kind === "dish") return { on: !!v, dishId: v || null };
+  const ids = Array.isArray(v) ? v : [];
+  return { on: ids.length > 0, [kind === "recipes" ? "recipeIds" : "dishIds"]: ids };
+}
+
+function configFromRefs(refs) {
+  const out = {};
+  MODULE_DEFS.forEach((def) => {
+    out[def.key] = valueToConfig(def.key, refs?.[def.key]);
+  });
+  return out;
+}
+
 export function migrate(db) {
   if (!db) return null;
   const from = db.version || 1;
@@ -83,6 +109,27 @@ export function migrate(db) {
       ...e,
       modules: normalizeV1Modules(e.modules),
     }));
+  }
+
+  if (from < 3) {
+    const flatMenus = (d.menus || []).flatMap((m) => {
+      if (m.variants && m.variants.length > 0) {
+        return m.variants.map((v) => ({
+          id: v.id,
+          name: v.name,
+          modules: configFromRefs(v.modules),
+        }));
+      }
+      return [{ id: m.id, name: m.name, modules: configFromRefs(m.modules) }];
+    });
+
+    const menuIds = new Set(flatMenus.map((m) => m.id));
+
+    d.menus = flatMenus;
+    d.events = (d.events || []).map((e) => {
+      const { variantId, ...rest } = e;
+      return { ...rest, menuId: variantId && menuIds.has(variantId) ? variantId : e.menuId };
+    });
   }
 
   return d;

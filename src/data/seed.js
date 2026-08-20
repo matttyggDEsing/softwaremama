@@ -78,6 +78,17 @@ export function makeSeed() {
   const rec = (id, name, module, items) => ({ id, name, module, items });
   const dish = (id, name, module, recipeId, margin) => ({ id, name, module, recipeId, margin });
 
+  const menuConfig = (refs) => {
+    const cfg = {};
+    MODULE_DEFS.forEach((def) => {
+      const v = refs[def.key];
+      if (def.kind === "dish") cfg[def.key] = { on: !!v, dishId: v || null };
+      else if (def.kind === "recipes") cfg[def.key] = { on: (v || []).length > 0, recipeIds: v || [] };
+      else cfg[def.key] = { on: (v || []).length > 0, dishIds: v || [] };
+    });
+    return cfg;
+  };
+
   const recipes = [
     rec("r_bruschetta", "Bruschettas de tomate", "entrada", [item("pan", { g: 60 }), item("tomate", { g: 40 }), item("ajo", { g: 3 }), item("aceite", { g: 8 }), item("sal", { g: 1 })]),
     rec("r_empanadas", "Empanadas de carne (x2)", "entrada", [item("carnepic", { g: 140 }), item("cebolla", { g: 40 }), item("huevos", { u: 0.15 }), item("aceite", { g: 5 })]),
@@ -128,25 +139,28 @@ export function makeSeed() {
 
   const menus = [
     {
-      id: "m1", name: "Menú Clásico",
-      variants: [
-        { id: "m1v1", name: "Casual", modules: { entrada: "d_emp1", principal: "d_pri1", postre: ["d_pos1"] } },
-        { id: "m1v2", name: "Cumpleaños", modules: { entrada: "d_emp2", principal: "d_pri2", postre: ["d_pos2"] } },
-      ],
+      id: "m1v1", name: "Menú Clásico · Casual",
+      modules: menuConfig({ entrada: "d_emp1", principal: "d_pri1", postre: ["d_pos1"] }),
     },
     {
-      id: "m2", name: "Menú Buffet",
-      variants: [
-        { id: "m2v1", name: "Buffet completo", modules: { buffet: ["r_pollhorn", "r_bondiola", "r_ensmixta", "r_griega"], postre: ["d_dul1", "d_dul4"], trasnoche: "d_tra1" } },
-        { id: "m2v2", name: "Buffet liviano", modules: { buffet: ["r_pollhorn", "r_ensmixta", "r_griega"], postre: ["d_dul3"] } },
-      ],
+      id: "m1v2", name: "Menú Clásico · Cumpleaños",
+      modules: menuConfig({ entrada: "d_emp2", principal: "d_pri2", postre: ["d_pos2"] }),
     },
     {
-      id: "m3", name: "Menú Premium",
-      variants: [
-        { id: "m3v1", name: "Elegante", modules: { entrada: "d_emp3", principal: "d_pri4", postre: ["d_pos1"], trasnoche: "d_tra3" } },
-        { id: "m3v2", name: "Casamiento", modules: { entrada: "d_emp1", principal: "d_pri3", postre: ["d_dul1", "d_dul2", "d_dul3", "d_pos3"] } },
-      ],
+      id: "m2v1", name: "Menú Buffet · Completo",
+      modules: menuConfig({ buffet: ["r_pollhorn", "r_bondiola", "r_ensmixta", "r_griega"], postre: ["d_dul1", "d_dul4"], trasnoche: "d_tra1" }),
+    },
+    {
+      id: "m2v2", name: "Menú Buffet · Liviano",
+      modules: menuConfig({ buffet: ["r_pollhorn", "r_ensmixta", "r_griega"], postre: ["d_dul3"] }),
+    },
+    {
+      id: "m3v1", name: "Menú Premium · Elegante",
+      modules: menuConfig({ entrada: "d_emp3", principal: "d_pri4", postre: ["d_pos1"], trasnoche: "d_tra3" }),
+    },
+    {
+      id: "m3v2", name: "Menú Premium · Casamiento",
+      modules: menuConfig({ entrada: "d_emp1", principal: "d_pri3", postre: ["d_dul1", "d_dul2", "d_dul3", "d_pos3"] }),
     },
   ];
 
@@ -197,7 +211,7 @@ export function makeSeed() {
   const events = [
     {
       id: "e1", clientId: "c1", name: "Cumpleaños de 70", date: "2026-08-30", guests: 45, status: "confirmado",
-      menuId: "m1", variantId: "m1v1", señaDate: "2026-08-20", seña: 100000, confirmDate: "2026-08-20",
+      menuId: "m1v1", señaDate: "2026-08-20", seña: 100000, confirmDate: "2026-08-20",
       notes: "Cumpleaños en el quincho de la familia. Confirmar cantidad final el 27/08.",
       modules: {
         entrada: { on: true, dishId: "d_emp1" },
@@ -209,7 +223,7 @@ export function makeSeed() {
     },
     {
       id: "e2", clientId: "c2", name: "Casamiento", date: "2026-09-19", guests: 80, status: "tentativo",
-      menuId: "m3", variantId: "m3v2", señaDate: "2026-08-24", seña: 150000, confirmDate: null,
+      menuId: "m3v2", señaDate: "2026-08-24", seña: 150000, confirmDate: null,
       notes: "Salón en Pilar. Pendiente reservar mesa dulce vegana.",
       modules: {
         entrada: { on: true, dishId: "d_emp1" },
@@ -221,7 +235,7 @@ export function makeSeed() {
     },
     {
       id: "e3", clientId: "c3", name: "Cena de fin de año", date: "2026-09-05", guests: 60, status: "consulta",
-      menuId: "m2", variantId: "m2v1", señaDate: "2026-08-26", seña: 100000, confirmDate: "2026-08-28",
+      menuId: "m2v1", señaDate: "2026-08-26", seña: 100000, confirmDate: "2026-08-28",
       notes: "Esperando aprobación de comisión. Presupuesto enviado.",
       modules: {
         entrada: { on: false, dishId: null },
@@ -233,7 +247,7 @@ export function makeSeed() {
     },
     {
       id: "e4", clientId: "c4", name: "Bautismo", date: "2026-07-18", guests: 30, status: "cerrado",
-      menuId: "m1", variantId: "m1v2", señaDate: "2026-06-20", seña: 80000, confirmDate: "2026-07-01",
+      menuId: "m1v2", señaDate: "2026-06-20", seña: 80000, confirmDate: "2026-07-01",
       notes: "Evento finalizado. Cliente conforme, repite anualmente.",
       modules: {
         entrada: { on: true, dishId: "d_emp2" },
@@ -261,7 +275,7 @@ export function makeSeed() {
   };
 
   return {
-    version: 2,
+    version: 3,
     ingredients,
     recipes,
     dishes,

@@ -1222,33 +1222,56 @@ th.right {
   gap: 8px;
 }
 
-/* ---------- Variants (legacy, hasta Bloque 4) ---------- */
+/* ---------- Menus (Bloque 4: sin variantes) ---------- */
 
-.variant-list {
+.menu-list {
   display: flex;
   flex-direction: column;
+  gap: 14px;
 }
 
-.variant {
+.menu-list .card {
+  margin-bottom: 0;
+}
+
+.menu-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--sep);
   flex-wrap: wrap;
+  margin-top: 12px;
 }
 
-.variant:last-child {
-  border-bottom: none;
-}
-
-.variant-price {
+.menu-price {
   display: grid;
   grid-template-columns: auto auto;
   gap: 2px 14px;
   text-align: right;
   font-size: 14px;
+}
+
+.menu-module {
+  border: 1px solid var(--sep);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.menu-module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.menu-module-head strong {
+  font-size: 15px;
+}
+
+.menu-module .chip-list {
+  margin-top: 10px;
 }
 
 /* ---------- Production / docs ---------- */

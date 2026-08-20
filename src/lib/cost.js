@@ -27,13 +27,22 @@ export function eventModules(event) {
   });
 }
 
-export function configFromVariant(variant) {
+export function emptyModules() {
   const out = {};
   MODULE_DEFS.forEach((def) => {
-    const v = variant.modules[def.key];
-    if (def.kind === "dish") out[def.key] = { on: !!v, dishId: v || null };
-    else if (def.kind === "recipes") out[def.key] = { on: !!v, recipeIds: v || [] };
-    else out[def.key] = { on: !!v, dishIds: v || [] };
+    if (def.kind === "dish") out[def.key] = { on: false, dishId: null };
+    else if (def.kind === "recipes") out[def.key] = { on: false, recipeIds: [] };
+    else out[def.key] = { on: false, dishIds: [] };
+  });
+  return out;
+}
+
+export function configFromMenu(menu) {
+  if (!menu) return emptyModules();
+  const out = emptyModules();
+  MODULE_DEFS.forEach((def) => {
+    const m = menu.modules?.[def.key];
+    if (m) out[def.key] = { ...out[def.key], ...m };
   });
   return out;
 }
@@ -202,9 +211,7 @@ export function eventProfit(event, db) {
   };
 }
 
-export function menuVariantAnalysis(menuId, variantId, guests, db) {
-  const menu = db.menus.find((m) => m.id === menuId);
-  const variant = menu?.variants.find((v) => v.id === variantId);
-  const event = { id: "tmp", guests, modules: configFromVariant(variant) };
+export function menuAnalysis(menu, guests, db) {
+  const event = { id: "tmp", guests, modules: configFromMenu(menu) };
   return eventAnalysis(event, db);
 }

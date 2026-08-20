@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, Btn, Badge, Icon, StatusPill, Switch, Select, Field, Input, TextArea, Tabs, Modal, Empty, SearchInput } from "../components/ui.jsx";
 import { useStore } from "../store.jsx";
 import { MODULE_DEFS } from "../data/seed.js";
-import { eventAnalysis, eventBalance, eventModules, shoppingList, configFromVariant, consumptionChecks } from "../lib/cost.js";
+import { eventAnalysis, eventBalance, eventModules, shoppingList, configFromMenu, consumptionChecks } from "../lib/cost.js";
 import { money, dateStr, daysUntil, kg, units, todayISO, addDaysISO } from "../lib/format.js";
 import { uid } from "../lib/id.js";
 import { clamp } from "../lib/num.js";
@@ -21,7 +21,6 @@ export function EventosPage() {
     date: addDaysISO(todayISO(), 21),
     guests: 40,
     menuId: nav.params.menuId || db.menus[0]?.id,
-    variantId: (db.menus.find((m) => m.id === (nav.params.menuId || db.menus[0]?.id))?.variants[0])?.id,
     status: "consulta",
   });
 
@@ -33,7 +32,6 @@ export function EventosPage() {
   const menu = db.menus.find((m) => m.id === form.menuId);
   const create = () => {
     if (!form.name.trim()) return;
-    const variant = menu?.variants.find((v) => v.id === form.variantId);
     const id = uid("e");
     add("events", {
       id,
@@ -43,12 +41,11 @@ export function EventosPage() {
       guests: clamp(form.guests, 1),
       status: form.status,
       menuId: form.menuId,
-      variantId: form.variantId,
       seña: db.settings.señaReference,
       señaDate: addDaysISO(form.date, -10),
       confirmDate: addDaysISO(form.date, -7),
       notes: "",
-      modules: configFromVariant(variant),
+      modules: configFromMenu(menu),
     });
     setNuevo(false);
     navigate("evento", { id });
@@ -150,17 +147,9 @@ export function EventosPage() {
           <Field label="Menú">
             <Select
               value={form.menuId}
-              onChange={(e) => {
-                const m = db.menus.find((x) => x.id === e.target.value);
-                setForm({ ...form, menuId: e.target.value, variantId: m?.variants[0]?.id });
-              }}
+              onChange={(e) => setForm({ ...form, menuId: e.target.value })}
             >
               {db.menus.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Variante">
-            <Select value={form.variantId} onChange={(e) => setForm({ ...form, variantId: e.target.value })}>
-              {menu?.variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </Select>
           </Field>
           <Field label="Estado inicial">
@@ -197,7 +186,6 @@ function ResumenTab({ event }) {
   const client = db.clients.find((c) => c.id === event.clientId);
   const bal = eventBalance(event, db);
   const menu = db.menus.find((m) => m.id === event.menuId);
-  const variant = menu?.variants.find((v) => v.id === event.variantId);
   const [form, setForm] = useState({ ...event });
 
   const save = () => {
@@ -207,10 +195,10 @@ function ResumenTab({ event }) {
     });
   };
 
-  const applyVariant = () => {
-    const v = menu?.variants.find((x) => x.id === form.variantId);
-    if (!v) return;
-    patch("events", event.id, { menuId: form.menuId, variantId: form.variantId, modules: configFromVariant(v) });
+  const applyMenu = () => {
+    const m = db.menus.find((x) => x.id === form.menuId);
+    if (!m) return;
+    patch("events", event.id, { menuId: form.menuId, modules: configFromMenu(m) });
   };
 
   const señaDue = daysUntil(event.señaDate);
@@ -260,22 +248,14 @@ function ResumenTab({ event }) {
             <Input type="number" min="1" value={form.guests} onChange={(e) => setForm({ ...form, guests: e.target.value })} />
           </Field>
           <Field label="Menú">
-            <Select value={form.menuId} onChange={(e) => {
-              const m = db.menus.find((x) => x.id === e.target.value);
-              setForm({ ...form, menuId: e.target.value, variantId: m?.variants[0]?.id });
-            }}>
+            <Select value={form.menuId} onChange={(e) => setForm({ ...form, menuId: e.target.value })}>
               {db.menus.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Variante">
-            <Select value={form.variantId} onChange={(e) => setForm({ ...form, variantId: e.target.value })}>
-              {menu?.variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </Select>
           </Field>
         </div>
         <div className="form-actions">
-          <Btn variant="outline" size="sm" icon="sparkle" onClick={applyVariant}>Aplicar menú y variante</Btn>
-          <span className="muted">Reemplaza los módulos seleccionados por los de la variante.</span>
+          <Btn variant="outline" size="sm" icon="sparkle" onClick={applyMenu}>Aplicar menú</Btn>
+          <span className="muted">Reemplaza los módulos del evento por los de este menú.</span>
         </div>
         <div className="form grid-2">
           <Field label="Seña (valor de referencia: 1 tarjeta = {money(db.settings.señaReference)})">
@@ -301,7 +281,7 @@ function ResumenTab({ event }) {
           <span><Icon name="users" size={14} /> {client?.name}</span>
           <span><Icon name="phone" size={14} /> {client?.phone}</span>
           <span><Icon name="file" size={14} /> {client?.email || "sin email"}</span>
-          <span><Icon name="sparkle" size={14} /> Menú: {menu?.name} · {variant?.name}</span>
+          <span><Icon name="sparkle" size={14} /> Menú: {menu?.name}</span>
         </div>
         {client?.notes && <p className="muted">{client.notes}</p>}
       </Card>

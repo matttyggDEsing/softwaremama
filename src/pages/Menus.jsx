@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Card, Btn, Badge, Icon, Select, Field, Input, Tabs, Empty, Modal, SearchInput } from "../components/ui.jsx";
+import { Card, Btn, Badge, Icon, Select, Field, Input, Tabs, Empty, Modal, SearchInput, Switch } from "../components/ui.jsx";
 import { useStore } from "../store.jsx";
 import { MODULE_DEFS } from "../data/seed.js";
-import { menuVariantAnalysis, configFromVariant, eventAnalysis, consumptionChecks, dishCost, dishPrice } from "../lib/cost.js";
+import { menuAnalysis, configFromMenu, emptyModules, eventAnalysis, consumptionChecks, dishCost, dishPrice } from "../lib/cost.js";
 import { money } from "../lib/format.js";
 import { todayISO, addDaysISO } from "../lib/format.js";
 import { uid } from "../lib/id.js";
@@ -68,22 +68,14 @@ function TempConfigurator({ config, setConfig, guests, setGuests }) {
   );
 }
 
-function MenuSelector({ menuId, variantId, setMenu, setVariant }) {
+function MenuSelector({ menuId, setMenu }) {
   const { db } = useStore();
-  const menu = db.menus.find((m) => m.id === menuId);
   return (
-    <div className="grid-2">
-      <Field label="Menú">
-        <Select value={menuId} onChange={(e) => { setMenu(e.target.value); const m = db.menus.find((x) => x.id === e.target.value); setVariant(m?.variants[0]?.id); }}>
-          {db.menus.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </Select>
-      </Field>
-      <Field label="Variante">
-        <Select value={variantId} onChange={(e) => setVariant(e.target.value)}>
-          {menu?.variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </Select>
-      </Field>
-    </div>
+    <Field label="Menú">
+      <Select value={menuId} onChange={(e) => setMenu(e.target.value)}>
+        {db.menus.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+      </Select>
+    </Field>
   );
 }
 
@@ -231,11 +223,88 @@ function DishForm({ initial, onSubmit, onCancel, submitLabel }) {
   );
 }
 
+function MenuForm({ initial, onSubmit, onCancel, submitLabel }) {
+  const { db } = useStore();
+  const [form, setForm] = useState(initial);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const setMod = (key, changes) =>
+    setForm((f) => ({ ...f, modules: { ...f.modules, [key]: { ...(f.modules[key] || {}), ...changes } } }));
+
+  const dishesFor = (mod) => db.dishes.filter((d) => d.module === mod);
+  const recipesFor = (mod) => db.recipes.filter((r) => r.module === mod);
+  const valid = form.name.trim() !== "";
+
+  const save = () => {
+    if (!valid) return;
+    onSubmit({ name: form.name.trim(), modules: form.modules });
+  };
+
+  return (
+    <div className="form">
+      <Field label="Nombre del menú">
+        <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ej. Menú XL asado" autoFocus />
+      </Field>
+      {MODULE_DEFS.map((def) => {
+        const m = form.modules[def.key] || { on: false };
+        return (
+          <div className="menu-module" key={def.key}>
+            <div className="menu-module-head">
+              <strong>{def.label}</strong>
+              <Switch checked={m.on} onChange={(v) => setMod(def.key, { on: v })} label={m.on ? "Activo" : "Desactivado"} />
+            </div>
+            {m.on && def.kind === "dish" && (
+              <Select value={m.dishId || ""} onChange={(e) => setMod(def.key, { dishId: e.target.value })}>
+                <option value="">— Seleccionar —</option>
+                {dishesFor(def.key).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </Select>
+            )}
+            {m.on && def.kind === "recipes" && (
+              <div className="chip-list">
+                {recipesFor(def.key).map((r) => {
+                  const on = (m.recipeIds || []).includes(r.id);
+                  return (
+                    <button key={r.id} className={`chip ${on ? "selected" : ""}`} onClick={() => setMod(def.key, { recipeIds: on ? m.recipeIds.filter((x) => x !== r.id) : [...(m.recipeIds || []), r.id] })}>
+                      <Icon name="check" size={13} /> {r.name}
+                    </button>
+                  );
+                })}
+                {recipesFor(def.key).length === 0 && <p className="muted">No hay recetas de buffet cargadas.</p>}
+              </div>
+            )}
+            {m.on && def.kind === "dishes" && (
+              <div className="chip-list">
+                {dishesFor(def.key).map((d) => {
+                  const on = (m.dishIds || []).includes(d.id);
+                  return (
+                    <button key={d.id} className={`chip ${on ? "selected" : ""}`} onClick={() => setMod(def.key, { dishIds: on ? m.dishIds.filter((x) => x !== d.id) : [...(m.dishIds || []), d.id] })}>
+                      <Icon name="check" size={13} /> {d.name}
+                    </button>
+                  );
+                })}
+                {dishesFor(def.key).length === 0 && <p className="muted">No hay platos de {def.label.toLowerCase()} cargados.</p>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div className="form-actions">
+        <Btn onClick={save} disabled={!valid}>{submitLabel}</Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+}
+
 function CombosTab() {
   const { db, navigate, patch, add, remove } = useStore();
+  const [nuevoMenu, setNuevoMenu] = useState(false);
+  const [editandoMenu, setEditandoMenu] = useState(null);
+  const [borrandoMenu, setBorrandoMenu] = useState(null);
   const [nuevoDish, setNuevoDish] = useState(false);
   const [editandoDish, setEditandoDish] = useState(null);
   const [borrandoDish, setBorrandoDish] = useState(null);
+
+  const menuUsages = (m) => db.events.filter((e) => e.menuId === m.id).map((e) => `Evento: ${e.name}`);
 
   const dishUsages = (d) => {
     const out = [];
@@ -243,11 +312,27 @@ function CombosTab() {
       if (!mod) return;
       if (mod.dishId === d.id || (Array.isArray(mod.dishIds) && mod.dishIds.includes(d.id))) out.push(`Evento: ${e.name}`);
     }));
-    db.menus.forEach((m) => (m.variants || []).forEach((v) => Object.values(v.modules).forEach((val) => {
-      const hits = Array.isArray(val) ? val.includes(d.id) : val === d.id || val?.dishId === d.id || (val?.dishIds || []).includes(d.id);
-      if (hits) out.push(`Menú ${m.name} · ${v.name}`);
-    })));
+    db.menus.forEach((m) => Object.values(m.modules).forEach((val) => {
+      if (!val) return;
+      const ids = Array.isArray(val) ? val : [val.dishId, ...(val.dishIds || []), ...(val.recipeIds || [])].filter(Boolean);
+      if (ids.includes(d.id)) out.push(`Menú: ${m.name}`);
+    }));
     return [...new Set(out)];
+  };
+
+  const createMenu = (data) => {
+    add("menus", { id: uid("m"), ...data });
+    setNuevoMenu(false);
+  };
+
+  const saveMenu = (data) => {
+    patch("menus", editandoMenu.id, data);
+    setEditandoMenu(null);
+  };
+
+  const confirmarMenu = () => {
+    remove("menus", borrandoMenu.id);
+    setBorrandoMenu(null);
   };
 
   const createDish = (data) => {
@@ -267,39 +352,45 @@ function CombosTab() {
 
   return (
     <div className="stack">
-      {db.menus.map((menu) => (
-        <Card key={menu.id} title={menu.name}>
-          <div className="variant-list">
-            {menu.variants.map((v) => {
-              const a = menuVariantAnalysis(menu.id, v.id, 1, db);
-              const parts = Object.entries(v.modules).map(([k, ref]) => {
-                const def = MODULE_DEFS.find((d) => d.key === k);
-                const names = Array.isArray(ref)
-                  ? ref.map((x) => (k === "buffet" ? db.recipes.find((r) => r.id === x)?.name : db.dishes.find((d) => d.id === x)?.name)).filter(Boolean)
-                  : [db.dishes.find((d) => d.id === ref)?.name].filter(Boolean);
-                return `${def?.short}: ${names.join(", ") || "—"}`;
-              });
-              return (
-                <div className="variant" key={v.id}>
-                  <div>
-                    <strong>{v.name}</strong>
-                    <p className="muted">{parts.join(" · ")}</p>
-                  </div>
-                  <div className="variant-price">
+      <Card
+        title="Menús del catálogo"
+        actions={<Btn icon="plus" onClick={() => setNuevoMenu(true)}>Nuevo menú</Btn>}
+      >
+        <div className="menu-list">
+          {db.menus.map((menu) => {
+            const a = menuAnalysis(menu, 1, db);
+            const parts = MODULE_DEFS.filter((def) => menu.modules?.[def.key]?.on).map((def) => {
+              const m = menu.modules[def.key];
+              const names = def.kind === "recipes"
+                ? (m.recipeIds || []).map((id) => db.recipes.find((r) => r.id === id)?.name)
+                : def.kind === "dish"
+                  ? [db.dishes.find((d) => d.id === m.dishId)?.name]
+                  : (m.dishIds || []).map((id) => db.dishes.find((d) => d.id === id)?.name);
+              return `${def.short}: ${names.filter(Boolean).join(", ") || "—"}`;
+            });
+            return (
+              <Card key={menu.id} title={menu.name} actions={
+                <div className="row-actions">
+                  <button className="icon-btn" onClick={() => setEditandoMenu(menu)} aria-label="Editar menú"><Icon name="edit" size={16} /></button>
+                  <button className="icon-btn danger" onClick={() => setBorrandoMenu(menu)} aria-label="Eliminar menú"><Icon name="trash" size={16} /></button>
+                </div>
+              }>
+                <p className="muted">{parts.join(" · ") || "Menú sin módulos activos."}</p>
+                <div className="menu-footer">
+                  <div className="menu-price">
                     <span className="muted">Costo/pers.</span>
                     <strong>{money(a.costPerPerson)}</strong>
                     <span className="muted">Precio/pers.</span>
                     <strong>{money(a.pricePerPerson)}</strong>
                   </div>
+                  <Btn variant="outline" size="sm" icon="calendar" onClick={() => navigate("eventos", { nuevo: true, menuId: menu.id })}>Usar en un evento</Btn>
                 </div>
-              );
-            })}
-          </div>
-          <div className="form-actions">
-            <Btn variant="outline" size="sm" icon="calendar" onClick={() => navigate("eventos", { nuevo: true, menuId: menu.id })}>Usar en un evento</Btn>
-          </div>
-        </Card>
-      ))}
+              </Card>
+            );
+          })}
+          {db.menus.length === 0 && <p className="muted">Sin menús cargados. Creá el primero.</p>}
+        </div>
+      </Card>
 
       <Card
         title="Platos con margen de ganancia editable"
@@ -386,28 +477,68 @@ function CombosTab() {
           );
         })()}
       </Modal>
+
+      <Modal open={nuevoMenu} onClose={() => setNuevoMenu(false)} title="Nuevo menú">
+        <MenuForm initial={emptyMenu()} onSubmit={createMenu} onCancel={() => setNuevoMenu(false)} submitLabel="Crear menú" />
+      </Modal>
+
+      <Modal open={!!editandoMenu} onClose={() => setEditandoMenu(null)} title={`Editar: ${editandoMenu?.name || ""}`}>
+        {editandoMenu && (
+          <MenuForm
+            initial={{ name: editandoMenu.name, modules: configFromMenu(editandoMenu) }}
+            onSubmit={saveMenu}
+            onCancel={() => setEditandoMenu(null)}
+            submitLabel="Guardar cambios"
+          />
+        )}
+      </Modal>
+
+      <Modal open={!!borrandoMenu} onClose={() => setBorrandoMenu(null)} title={`Eliminar: ${borrandoMenu?.name || ""}`}>
+        {borrandoMenu && (() => {
+          const u = menuUsages(borrandoMenu);
+          return u.length > 0 ? (
+            <div className="form">
+              <p className="muted">
+                Este menú se usa en los siguientes eventos. <strong>No se puede eliminar</strong> porque rompería su referencia:
+              </p>
+              <ul className="usage-list">
+                {u.map((x, i) => <li key={i}><Icon name="calendar" size={15} /> {x}</li>)}
+              </ul>
+              <div className="form-actions">
+                <Btn variant="outline" onClick={() => setBorrandoMenu(null)}>Entendido</Btn>
+              </div>
+            </div>
+          ) : (
+            <div className="form">
+              <p className="muted">¿Eliminar este menú? La operación no se puede deshacer.</p>
+              <div className="form-actions">
+                <Btn variant="danger" onClick={confirmarMenu}><Icon name="trash" size={16} /> Eliminar</Btn>
+                <Btn variant="ghost" onClick={() => setBorrandoMenu(null)}>Cancelar</Btn>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
     </div>
   );
 }
 
 function CalculadorTab() {
   const { db, navigate, add } = useStore();
-  const [menuId, setMenuId] = useState(db.menus[0].id);
-  const [variantId, setVariantId] = useState(db.menus[0].variants[0].id);
+  const [menuId, setMenuId] = useState(db.menus[0]?.id);
   const [guests, setGuests] = useState(50);
   const menu = db.menus.find((m) => m.id === menuId);
-  const variant = menu?.variants.find((v) => v.id === variantId);
-  const [config, setConfig] = useState(() => configFromVariant(variant));
+  const [config, setConfig] = useState(() => configFromMenu(menu));
   const [saved, setSaved] = useState(null);
 
-  const applyVariant = () => setConfig(configFromVariant(variant));
+  const applyMenu = () => setConfig(configFromMenu(menu));
   const tempEvent = { id: "tmp", guests: Number(guests) || 1, modules: config };
 
   const saveAsEvent = () => {
     const id = uid("e");
     add("events", {
-      id, clientId: db.clients[0].id, name: `${menu.name} · ${variant?.name}`, date: addDaysISO(todayISO(), 21),
-      guests: clamp(guests, 1), status: "consulta", menuId, variantId, seña: db.settings.señaReference,
+      id, clientId: db.clients[0].id, name: menu?.name || "Evento del calculador", date: addDaysISO(todayISO(), 21),
+      guests: clamp(guests, 1), status: "consulta", menuId, seña: db.settings.señaReference,
       señaDate: addDaysISO(addDaysISO(todayISO(), 21), -10), confirmDate: addDaysISO(addDaysISO(todayISO(), 21), -7),
       notes: "Creado desde el calculador de costos.", modules: config,
     });
@@ -418,13 +549,13 @@ function CalculadorTab() {
   return (
     <div className="stack">
       <Card title="Calculador de costos por plato">
-        <MenuSelector menuId={menuId} variantId={variantId} setMenu={setMenuId} setVariant={setVariantId} />
+        <MenuSelector menuId={menuId} setMenu={setMenuId} />
         <div className="form grid-2">
           <Field label="Cantidad de invitados">
             <Input type="number" min="1" value={guests} onChange={(e) => setGuests(e.target.value)} />
           </Field>
           <div className="form-actions align-end">
-            <Btn variant="outline" size="sm" icon="sparkle" onClick={applyVariant}>Cargar variante</Btn>
+            <Btn variant="outline" size="sm" icon="sparkle" onClick={applyMenu}>Cargar menú</Btn>
             <Btn size="sm" icon="calendar" onClick={saveAsEvent}>Crear evento con este menú</Btn>
           </div>
         </div>
@@ -529,6 +660,10 @@ function ConsumptionTab() {
   );
 }
 
+function emptyMenu() {
+  return { name: "", modules: emptyModules() };
+}
+
 function emptyRecipe(db) {
   return { name: "", module: MODULE_DEFS[0].key, items: [] };
 }
@@ -627,10 +762,9 @@ function RecetasTab() {
   const usages = (r) => {
     const out = [];
     db.dishes.filter((d) => d.recipeId === r.id).forEach((d) => out.push(`Plato: ${d.name}`));
-    db.menus.forEach((m) => (m.variants || []).forEach((v) => Object.values(v.modules).forEach((val) => {
-      const ids = Array.isArray(val) ? val : val?.recipeIds || [];
-      if (ids.includes(r.id)) out.push(`Menú ${m.name} · ${v.name}`);
-    })));
+    db.menus.forEach((m) => Object.values(m.modules).forEach((val) => {
+      if (val && Array.isArray(val.recipeIds) && val.recipeIds.includes(r.id)) out.push(`Menú: ${m.name}`);
+    }));
     db.events.forEach((e) => Object.values(e.modules).forEach((mod) => {
       if (mod && Array.isArray(mod.recipeIds) && mod.recipeIds.includes(r.id)) out.push(`Evento: ${e.name}`);
     }));
