@@ -351,33 +351,149 @@ function ComprasTab() {
   );
 }
 
+function emptySup() {
+  return { name: "", phone: "", categories: "" };
+}
+
+function ProveedorForm({ initial, onSubmit, onCancel, submitLabel }) {
+  const [form, setForm] = useState(initial);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const valid = form.name.trim() !== "";
+
+  const save = () => {
+    if (!valid) return;
+    onSubmit({
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      categories: form.categories.trim(),
+    });
+  };
+
+  return (
+    <div className="form">
+      <Field label="Nombre">
+        <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ej. Carnicería El Punto" autoFocus />
+      </Field>
+      <div className="grid-2">
+        <Field label="Teléfono">
+          <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Ej. 911 555 0101" />
+        </Field>
+        <Field label="Rubro / categorías">
+          <Input value={form.categories} onChange={(e) => set("categories", e.target.value)} placeholder="Ej. Carnes" />
+        </Field>
+      </div>
+      <div className="form-actions">
+        <Btn onClick={save} disabled={!valid}>{submitLabel}</Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+}
+
 function ProveedoresTab() {
-  const { db } = useStore();
+  const { db, add, patch, remove } = useStore();
+  const [nuevo, setNuevo] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [borrando, setBorrando] = useState(null);
+
+  const countFor = (id) => db.ingredients.filter((i) => i.supplierId === id).length;
+  const enUso = borrando ? countFor(borrando.id) : 0;
+
+  const create = (data) => {
+    add("suppliers", { id: uid("sup"), ...data });
+    setNuevo(false);
+  };
+
+  const saveEdit = (data) => {
+    patch("suppliers", editando.id, data);
+    setEditando(null);
+  };
+
+  const confirmarBorrado = () => {
+    remove("suppliers", borrando.id);
+    setBorrando(null);
+  };
+
   return (
     <div className="stack">
-      <Card title="Proveedores fijos">
+      <Card
+        title="Proveedores"
+        actions={<Btn icon="plus" onClick={() => setNuevo(true)}>Nuevo proveedor</Btn>}
+      >
         <p className="muted">Cada insumo tiene asignado un proveedor de referencia para la lista de compras.</p>
-        <div className="grid-2">
-          {db.suppliers.map((s) => {
-            const count = db.ingredients.filter((i) => i.supplierId === s.id).length;
-            return (
-              <div className="supplier" key={s.id}>
-                <div className="supplier-name">
-                  <span className="supplier-avatar"><Icon name="box" size={16} /></span>
-                  <div>
-                    <strong>{s.name}</strong>
-                    <span className="muted">{s.categories}</span>
+        {db.suppliers.length === 0 ? (
+          <Empty title="Sin proveedores" text="Creá un proveedor para asignarlo a los insumos." />
+        ) : (
+          <div className="grid-2">
+            {db.suppliers.map((s) => {
+              const count = countFor(s.id);
+              return (
+                <div className="supplier" key={s.id}>
+                  <div className="supplier-head">
+                    <div className="supplier-name">
+                      <span className="supplier-avatar"><Icon name="box" size={16} /></span>
+                      <div>
+                        <strong>{s.name}</strong>
+                        <span className="muted">{s.categories}</span>
+                      </div>
+                    </div>
+                    <div className="row-actions">
+                      <button className="icon-btn" onClick={() => setEditando(s)} aria-label="Editar proveedor"><Icon name="edit" size={16} /></button>
+                      <button className="icon-btn danger" onClick={() => setBorrando(s)} aria-label="Eliminar proveedor"><Icon name="trash" size={16} /></button>
+                    </div>
+                  </div>
+                  <div className="supplier-meta">
+                    <span><Icon name="phone" size={14} /> {s.phone || "—"}</span>
+                    <Badge tone="humo">{count} {count === 1 ? "insumo" : "insumos"}</Badge>
                   </div>
                 </div>
-                <div className="supplier-meta">
-                  <span><Icon name="phone" size={14} /> {s.phone}</span>
-                  <Badge tone="humo">{count} insumos</Badge>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
+
+      <Modal open={nuevo} onClose={() => setNuevo(false)} title="Nuevo proveedor">
+        <ProveedorForm
+          initial={emptySup()}
+          onSubmit={create}
+          onCancel={() => setNuevo(false)}
+          submitLabel="Crear proveedor"
+        />
+      </Modal>
+
+      <Modal open={!!editando} onClose={() => setEditando(null)} title={`Editar: ${editando?.name || ""}`}>
+        {editando && (
+          <ProveedorForm
+            initial={{ name: editando.name, phone: editando.phone, categories: editando.categories }}
+            onSubmit={saveEdit}
+            onCancel={() => setEditando(null)}
+            submitLabel="Guardar cambios"
+          />
+        )}
+      </Modal>
+
+      <Modal open={!!borrando} onClose={() => setBorrando(null)} title={`Eliminar: ${borrando?.name || ""}`}>
+        {enUso > 0 ? (
+          <div className="form">
+            <p className="muted">
+              Este proveedor tiene <strong>{enUso} {enUso === 1 ? "insumo asignado" : "insumos asignados"}</strong>.{" "}
+              <strong>No se puede eliminar</strong>: primero reasigná esos insumos a otro proveedor.
+            </p>
+            <div className="form-actions">
+              <Btn variant="outline" onClick={() => setBorrando(null)}>Entendido</Btn>
+            </div>
+          </div>
+        ) : (
+          <div className="form">
+            <p className="muted">¿Eliminar este proveedor? La operación no se puede deshacer.</p>
+            <div className="form-actions">
+              <Btn variant="danger" onClick={confirmarBorrado}><Icon name="trash" size={16} /> Eliminar</Btn>
+              <Btn variant="ghost" onClick={() => setBorrando(null)}>Cancelar</Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
