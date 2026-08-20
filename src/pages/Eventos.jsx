@@ -328,7 +328,7 @@ function ModuleEditor({ event }) {
   const dishesFor = (mod) => db.dishes.filter((d) => d.module === mod);
   const recipesFor = (mod) => db.recipes.filter((r) => r.module === mod);
 
-  const checkType = (key) => (key === "buffet" ? "buffet" : key === "dulce" || key === "postre" ? "postre" : "mesa");
+  const checkType = (key) => (key === "buffet" ? "buffet" : key === "postre" ? "postre" : "mesa");
 
   return (
     <div className="stack">

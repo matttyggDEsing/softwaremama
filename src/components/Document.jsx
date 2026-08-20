@@ -112,7 +112,7 @@ function Produccion({ event, analysis, db }) {
   const { ingredients } = db;
   const section = (mod, type) => {
     if (mod.kind === "recipes") return "buffet";
-    if (mod.kind === "dishes") return "dulce";
+    if (mod.kind === "dishes") return "postre";
     return "mesa";
   };
   return (

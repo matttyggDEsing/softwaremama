@@ -533,6 +533,31 @@ input, select, textarea {
   color: var(--grafito);
 }
 
+.ing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ing-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 64px 34px;
+  gap: 8px;
+  align-items: center;
+}
+
+.ing-row .ing-ing {
+  min-width: 0;
+}
+
+.ing-row .ing-qty {
+  text-align: right;
+}
+
+.ing-row .ing-unit {
+  padding: 0 8px;
+}
+
 .link-btn {
   border: none;
   background: none;

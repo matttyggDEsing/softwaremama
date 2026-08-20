@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { makeSeed } from "./data/seed.js";
+import { migrate } from "./lib/migrate.js";
 
 const KEY = "jafet-prototipo-v1";
 
@@ -8,7 +9,7 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.version === 1) return parsed;
+      if (parsed && parsed.version) return migrate(parsed) || makeSeed();
     }
   } catch {
     /* ignore */

@@ -34,21 +34,24 @@ function normalizeModuleConfig(raw) {
   return config;
 }
 
-function migrateDulce(modules) {
-  const mods = { ...modules };
+// v1 -> v2: se elimina el módulo "dulce" (mesa dulce). Sus recetas/platos pasan a "postre"
+// y las opciones dulces se fusionan dentro del módulo "postre" (que ahora admite varios).
+// Acepta tanto configs de evento ({on, dishIds}) como refs planas de variante (array de ids).
+function refIds(ref) {
+  if (!ref) return [];
+  if (Array.isArray(ref)) return ref;
+  return ref.dishIds || (ref.dishId ? [ref.dishId] : []);
+}
+
+function normalizeV1Modules(modules) {
+  const mods = { ...(modules || {}) };
   const dulce = mods.dulce;
   delete mods.dulce;
-  if (dulce && dulce.on) {
-    const postre = mods.postre || { on: false };
-    const ids = new Set(postre.dishIds || (postre.dishId ? [postre.dishId] : []));
-    (dulce.dishIds || []).forEach((id) => ids.add(id));
-    mods.postre = { on: true, dishIds: [...ids] };
-  } else if (mods.postre && mods.postre.dishId !== undefined && mods.postre.dishIds === undefined) {
-    mods.postre = { on: mods.postre.on, dishIds: mods.postre.dishId ? [mods.postre.dishId] : [] };
-  } else if (mods.postre) {
-    mods.postre = { on: mods.postre.on, dishIds: mods.postre.dishIds || [] };
-  }
-  return mods;
+
+  const ids = [...new Set([...refIds(mods.postre), ...refIds(dulce)])];
+  mods.postre = ids.length > 0 ? ids : mods.postre;
+
+  return normalizeModuleConfig(mods);
 }
 
 export function migrate(db) {
@@ -66,30 +69,20 @@ export function migrate(db) {
       x.module === "dulce" ? { ...x, module: "postre" } : x
     );
 
-    const menus = [];
-    (d.menus || []).forEach((m) => {
+    d.menus = (d.menus || []).map((m) => {
       if (m.variants && m.variants.length > 0) {
-        m.variants.forEach((v) => {
-          menus.push({
-            id: v.id,
-            name: `${m.name} · ${v.name}`,
-            modules: normalizeModuleConfig(v.modules),
-          });
-        });
-      } else {
-        menus.push({ id: m.id, name: m.name, modules: normalizeModuleConfig(m.modules) });
+        return {
+          ...m,
+          variants: m.variants.map((v) => ({ ...v, modules: normalizeV1Modules(v.modules) })),
+        };
       }
+      return { ...m, modules: normalizeV1Modules(m.modules) };
     });
-    d.menus = menus;
 
-    d.events = (d.events || []).map((e) => {
-      const next = { ...e };
-      const targetMenu = e.variantId || e.menuId;
-      next.menuId = menus.find((m) => m.id === targetMenu) ? targetMenu : e.menuId;
-      delete next.variantId;
-      next.modules = migrateDulce(next.modules || {});
-      return next;
-    });
+    d.events = (d.events || []).map((e) => ({
+      ...e,
+      modules: normalizeV1Modules(e.modules),
+    }));
   }
 
   return d;
