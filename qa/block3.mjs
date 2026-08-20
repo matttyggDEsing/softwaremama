@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 
 const PORT = 4174;
 const BASE = `http://127.0.0.1:${PORT}`;
-const KEY = "jafet-prototipo-v1";
+const KEY = "jafet-prototipo-v2";
 const results = [];
 const shots = "qa/shots";
 
@@ -58,6 +58,8 @@ await sleep(6000);
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 page.on("pageerror", (e) => check("sin errores de consola", false, e.message));
+const demoJson = readFileSync(new URL("./demo-data.json", import.meta.url), "utf8");
+await page.addInitScript((json) => { localStorage.setItem("jafet-prototipo-v2", json); }, demoJson);
 
 try {
   await page.goto(BASE, { waitUntil: "networkidle" });

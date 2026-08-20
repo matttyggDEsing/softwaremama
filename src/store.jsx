@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { makeSeed } from "./data/seed.js";
 import { migrate } from "./lib/migrate.js";
 
-const KEY = "jafet-prototipo-v1";
+const KEY = "jafet-prototipo-v2";
 
 function load() {
   try {

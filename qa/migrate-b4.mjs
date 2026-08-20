@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+
+const demoDb = JSON.parse(readFileSync(new URL("./demo-data.json", import.meta.url), "utf8"));
+
 Promise.all([
   import('file:///C:/Users/Maty/Desktop/softwaremama/src/lib/migrate.js'),
   import('file:///C:/Users/Maty/Desktop/softwaremama/src/lib/cost.js'),
-  import('file:///C:/Users/Maty/Desktop/softwaremama/src/data/seed.js'),
-]).then(([m, c, s]) => {
+]).then(([m, c]) => {
   const fail = (msg) => { console.log('FAIL', msg); process.exitCode = 1; };
   const ok = (msg) => console.log('OK  ', msg);
 
@@ -59,13 +62,13 @@ Promise.all([
   if (out2.events[0].menuId !== "m1v1" || "variantId" in out2.events[0]) fail('v2 evento no re-mapeado');
   else ok('v2 evento re-mapeado a m1v1');
 
-  // --- v3 seed pasa sin cambios ---
-  const db3 = s.makeSeed();
+  // --- seed demo pasa sin cambios ---
+  const db3 = demoDb;
   const out3 = m.migrate(db3);
-  if (out3.menus.length !== db3.menus.length) fail('seed v3 no debe tocarse');
-  else ok('seed v3 intacto (' + out3.menus.length + ' menús)');
+  if (out3.menus.length !== db3.menus.length) fail('seed demo no debe tocarse');
+  else ok('seed demo intacto (' + out3.menus.length + ' menús)');
   const an = c.menuAnalysis(db3.menus[0], 45, db3);
-  ok(`menuAnalysis m1v1 45 pers: precio/pers ${Math.round(an.pricePerPerson)} -> total ${Math.round(an.price)}`);
+  ok(`menuAnalysis ${db3.menus[0].name} 45 pers: precio/pers ${Math.round(an.pricePerPerson)} -> total ${Math.round(an.price)}`);
 
   const ev = db3.events[0];
   if (!db3.menus.find((x) => x.id === ev.menuId)) fail('evento e1 apunta a menú inexistente');
