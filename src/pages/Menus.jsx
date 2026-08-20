@@ -540,7 +540,7 @@ function CalculadorTab() {
       id, clientId: db.clients[0].id, name: menu?.name || "Evento del calculador", date: addDaysISO(todayISO(), 21),
       guests: clamp(guests, 1), status: "consulta", menuId, seña: db.settings.señaReference,
       señaDate: addDaysISO(addDaysISO(todayISO(), 21), -10), confirmDate: addDaysISO(addDaysISO(todayISO(), 21), -7),
-      notes: "Creado desde el calculador de costos.", specials: [], modules: config,
+      notes: "Creado desde el calculador de costos.", specials: [], shopping: { overrides: {}, manual: [], removed: [] }, modules: config,
     });
     setSaved(id);
     navigate("evento", { id });

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, Btn, Badge, Icon, StatusPill, Switch, Select, Field, Input, TextArea, Tabs, Modal, Empty, SearchInput } from "../components/ui.jsx";
 import { useStore } from "../store.jsx";
 import { MODULE_DEFS } from "../data/seed.js";
-import { eventAnalysis, eventBalance, eventModules, shoppingList, configFromMenu, consumptionChecks } from "../lib/cost.js";
+import { eventAnalysis, eventBalance, eventModules, shoppingList, effectiveShoppingList, configFromMenu, consumptionChecks } from "../lib/cost.js";
 import { money, dateStr, daysUntil, kg, units, todayISO, addDaysISO } from "../lib/format.js";
 import { uid } from "../lib/id.js";
 import { clamp } from "../lib/num.js";
@@ -46,6 +46,7 @@ export function EventosPage() {
       confirmDate: addDaysISO(form.date, -7),
       notes: "",
       specials: [],
+      shopping: { overrides: {}, manual: [], removed: [] },
       modules: configFromMenu(menu),
     });
     setNuevo(false);
@@ -548,17 +549,56 @@ function ModuleEditor({ event }) {
 
 function ComprasTab({ event }) {
   const { db, add, remove, patch, setSettings } = useStore();
-  const list = shoppingList(event, db);
+  const list = effectiveShoppingList(event, db);
   const [done, setDone] = useState(() => new Set());
   const [waOpen, setWaOpen] = useState(false);
+  const [mForm, setMForm] = useState(false);
+
+  const shop = event.shopping || { overrides: {}, manual: [], removed: [] };
+
   const toggle = (id) => {
     const next = new Set(done);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setDone(next);
   };
+
+  const setNeeded = (it, raw) => {
+    if (it.manual) {
+      const manual = (shop.manual || []).map((m) => (m.id === it.id ? { ...m, qty: clamp(raw, 0) } : m));
+      patch("events", event.id, { shopping: { ...shop, manual } });
+    } else {
+      const v = Number(raw);
+      const overrides = { ...(shop.overrides || {}) };
+      if (raw === "" || Number.isNaN(v)) delete overrides[it.ingredientId];
+      else overrides[it.ingredientId] = Math.max(0, v);
+      patch("events", event.id, { shopping: { ...shop, overrides } });
+    }
+  };
+
+  const revertOverride = (id) => {
+    const overrides = { ...(shop.overrides || {}) };
+    delete overrides[id];
+    patch("events", event.id, { shopping: { ...shop, overrides } });
+  };
+
+  const removeItem = (it) => {
+    if (it.manual) {
+      const manual = (shop.manual || []).filter((m) => m.id !== it.id);
+      patch("events", event.id, { shopping: { ...shop, manual } });
+    } else {
+      patch("events", event.id, { shopping: { ...shop, removed: [...(shop.removed || []), it.ingredientId] } });
+    }
+  };
+
+  const addManual = (data) => {
+    patch("events", event.id, { shopping: { ...shop, manual: [...(shop.manual || []), data] } });
+    setMForm(false);
+  };
+
   const pending = list.filter((it) => !done.has(it.ingredientId) && it.needed > 0);
   const toBuy = list.filter((it) => it.toBuy > 0);
+  const manualCount = (shop.manual || []).length + Object.keys(shop.overrides || {}).length + (shop.removed || []).length;
   const waPhone = db.clients.find((c) => c.id === event.clientId)?.phone?.replace(/\D/g, "");
   const waText = encodeURIComponent(
     `Lista de compras — ${event.name} (${dateStr(event.date)}, ${event.guests} invitados):\n` +
@@ -570,15 +610,17 @@ function ComprasTab({ event }) {
       <Card title="Lista de compras del evento" actions={
         <>
           <Btn variant="outline" size="sm" icon="whatsapp" onClick={() => setWaOpen(true)}>Enviar por WhatsApp</Btn>
+          <Btn size="sm" icon="plus" onClick={() => setMForm(true)}>Agregar ítem manual</Btn>
         </>
       }>
         <p className="muted">
           Generada automáticamente desde el menú: {list.length} insumos · {toBuy.length} para comprar (descontando stock).
+          {" "}Los ajustes se guardan para este evento y no se pierden al volver a entrar.
         </p>
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th className="ck-col" /><th>Insumo</th><th>Necesario</th><th className="right">Stock</th><th className="right">Comprar</th><th>Proveedor</th></tr>
+              <tr><th className="ck-col" /><th>Insumo</th><th>Necesario</th><th className="right">Stock</th><th className="right">Comprar</th><th>Proveedor</th><th /></tr>
             </thead>
             <tbody>
               {list.map((it) => {
@@ -588,19 +630,44 @@ function ComprasTab({ event }) {
                     <td className="ck-col">
                       <input type="checkbox" className="ck" checked={done.has(it.ingredientId)} onChange={() => toggle(it.ingredientId)} />
                     </td>
-                    <td><strong>{it.name}</strong> <span className="muted">({it.cat})</span></td>
-                    <td>{it.unit === "uni" ? units(it.needed) : kg(it.needed * 1000)}</td>
-                    <td className="right">{it.unit === "uni" ? units(it.stock) : kg(it.stock)}</td>
+                    <td>
+                      <strong>{it.name}</strong> <span className="muted">({it.cat})</span>
+                      {it.manual && <Badge tone="blue">manual</Badge>}
+                      {it.overridden && !it.manual && (
+                        <button className="icon-btn" onClick={() => revertOverride(it.ingredientId)} title="Volver al cálculo automático" aria-label="Volver al cálculo automático"><Icon name="back" size={14} /></button>
+                      )}
+                    </td>
+                    <td>
+                      <input
+                        className="input input-xs right"
+                        type="number"
+                        min="0"
+                        step={it.unit === "uni" ? "1" : "any"}
+                        value={Number.isFinite(it.needed) ? it.needed : 0}
+                        aria-label={`Necesario de ${it.name}`}
+                        onChange={(e) => setNeeded(it, e.target.value)}
+                      />
+                    </td>
+                    <td className="right">{it.unit === "uni" ? units(it.stock) : kg(it.stock * 1000)}</td>
                     <td className={`right ${it.toBuy > 0 ? "tone-amber" : "tone-green"}`}>{it.unit === "uni" ? units(it.toBuy) : kg(it.toBuy * 1000)}</td>
                     <td>{sup?.name || "—"}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="icon-btn danger" onClick={() => removeItem(it)} aria-label={`Quitar ${it.name}`}><Icon name="trash" size={16} /></button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
-              {list.length === 0 && <tr><td colSpan={6} className="muted">Sin módulos activos: no hay insumos para este evento.</td></tr>}
+              {list.length === 0 && <tr><td colSpan={7} className="muted">Sin módulos activos: no hay insumos para este evento.</td></tr>}
             </tbody>
           </table>
         </div>
       </Card>
+
+      <Modal open={mForm} onClose={() => setMForm(false)} title="Agregar ítem manual">
+        <ManualItemForm onSubmit={addManual} onCancel={() => setMForm(false)} />
+      </Modal>
 
       <Modal open={waOpen} onClose={() => setWaOpen(false)} title="Enviar lista por WhatsApp">
         <p className="muted">Se abre WhatsApp con el mensaje listo para enviar:</p>
@@ -612,6 +679,53 @@ function ComprasTab({ event }) {
           <Btn icon="whatsapp" onClick={() => window.open(`https://wa.me/${waPhone}?text=${waText}`, "_blank", "noopener")}>Abrir WhatsApp</Btn>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function ManualItemForm({ onSubmit, onCancel }) {
+  const { db } = useStore();
+  const [form, setForm] = useState({ label: "", unit: "kg", qty: "", supplierId: "" });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const valid = form.label.trim() !== "" && Number(form.qty) > 0;
+
+  const save = () => {
+    if (!valid) return;
+    onSubmit({
+      id: uid("mi"),
+      label: form.label.trim(),
+      unit: form.unit,
+      qty: clamp(form.qty, 0.01),
+      supplierId: form.supplierId || null,
+    });
+  };
+
+  return (
+    <div className="form">
+      <Field label="Ítem">
+        <Input value={form.label} onChange={(e) => set("label", e.target.value)} placeholder="Ej. Servilletas de papel" />
+      </Field>
+      <div className="grid-2">
+        <Field label="Unidad">
+          <Select value={form.unit} onChange={(e) => set("unit", e.target.value)}>
+            <option value="kg">kg</option>
+            <option value="uni">unidad</option>
+          </Select>
+        </Field>
+        <Field label="Cantidad">
+          <Input type="number" min="0" step="any" value={form.qty} onChange={(e) => set("qty", e.target.value)} placeholder="0" />
+        </Field>
+      </div>
+      <Field label="Proveedor (opcional)">
+        <Select value={form.supplierId} onChange={(e) => set("supplierId", e.target.value)}>
+          <option value="">— Ninguno —</option>
+          {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </Select>
+      </Field>
+      <div className="form-actions">
+        <Btn onClick={save} disabled={!valid}>Agregar a la lista</Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+      </div>
     </div>
   );
 }

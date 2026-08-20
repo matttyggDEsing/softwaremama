@@ -73,10 +73,10 @@ try {
   // --- Lista de compras: especial suma a su cantidad, no como 45 ---
   await page.locator("button[role=tab]:has-text('Compras')").click();
   await page.waitForSelector("text=Lista de compras del evento");
-  const arroz = await page.locator("tr:has-text('Arroz')").innerText();
-  check("lista: arroz del especial (90g × 3 = 270g)", arroz.includes("270 g"), arroz.replace(/\s+/g, " ").trim());
-  const pollo = await page.locator("tr:has-text('Filet de pollo')").innerText();
-  check("lista: estándar escala a 42 (220g × 42 = 9,24 kg)", pollo.includes("9,24 kg"), pollo.replace(/\s+/g, " ").trim());
+  const arroz = Number(await page.locator("input[aria-label='Necesario de Arroz']").inputValue());
+  check("lista: arroz del especial (90g × 3 = 0,27 kg)", Math.abs(arroz - 0.27) < 0.001, `arroz=${arroz} kg`);
+  const pollo = Number(await page.locator("input[aria-label='Necesario de Filet de pollo']").inputValue());
+  check("lista: estándar escala a 42 (220g × 42 = 9,24 kg)", Math.abs(pollo - 9.24) < 0.001, `pollo=${pollo} kg`);
 
   // --- Quitar el especial restaura el total ---
   await page.locator("button[role=tab]:has-text('Menú y costos')").click();

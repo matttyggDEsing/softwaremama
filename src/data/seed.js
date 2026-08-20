@@ -227,6 +227,7 @@ export function makeSeed() {
       menuId: "m3v2", señaDate: "2026-08-24", seña: 150000, confirmDate: null,
       notes: "Salón en Pilar. Pendiente reservar mesa dulce vegana.",
       specials: [],
+      shopping: { overrides: {}, manual: [], removed: [] },
       modules: {
         entrada: { on: true, dishId: "d_emp1" },
         principal: { on: true, dishId: "d_pri3" },
@@ -240,6 +241,7 @@ export function makeSeed() {
       menuId: "m2v1", señaDate: "2026-08-26", seña: 100000, confirmDate: "2026-08-28",
       notes: "Esperando aprobación de comisión. Presupuesto enviado.",
       specials: [],
+      shopping: { overrides: {}, manual: [], removed: [] },
       modules: {
         entrada: { on: false, dishId: null },
         principal: { on: false, dishId: null },
@@ -253,6 +255,7 @@ export function makeSeed() {
       menuId: "m1v2", señaDate: "2026-06-20", seña: 80000, confirmDate: "2026-07-01",
       notes: "Evento finalizado. Cliente conforme, repite anualmente.",
       specials: [],
+      shopping: { overrides: {}, manual: [], removed: [] },
       modules: {
         entrada: { on: true, dishId: "d_emp2" },
         principal: { on: true, dishId: "d_pri2" },
@@ -279,7 +282,7 @@ export function makeSeed() {
   };
 
   return {
-    version: 4,
+    version: 5,
     ingredients,
     recipes,
     dishes,

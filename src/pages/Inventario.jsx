@@ -332,7 +332,7 @@ function ComprasTab() {
                     <td className="ck-col"><input type="checkbox" className="ck" checked={done.has(it.ingredientId)} onChange={() => toggle(it.ingredientId)} /></td>
                     <td><strong>{it.name}</strong></td>
                     <td>{it.unit === "uni" ? units(it.needed) : kg(it.needed * 1000)}</td>
-                    <td className="right">{it.unit === "uni" ? units(it.stock) : kg(it.stock)}</td>
+                    <td className="right">{it.unit === "uni" ? units(it.stock) : kg(it.stock * 1000)}</td>
                     <td className={`right ${it.toBuy > 0 ? "tone-amber" : "tone-green"}`}>{it.unit === "uni" ? units(it.toBuy) : kg(it.toBuy * 1000)}</td>
                     <td>{it.cat}</td>
                   </tr>

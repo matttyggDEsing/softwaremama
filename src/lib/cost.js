@@ -231,6 +231,45 @@ export function shoppingList(event, db) {
     .sort((a, b) => a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name));
 }
 
+// Lista efectiva de compras de un evento: parte de la lista automática y le aplica la edición
+// manual persistida por evento (ajustes de cantidad, ítems quitados e ítems manuales agregados).
+// event.shopping = { overrides: { [ingredientId]: qty }, removed: [ingredientId], manual: [{ id, label, unit, qty, supplierId }] }
+export function effectiveShoppingList(event, db) {
+  const auto = shoppingList(event, db);
+  const s = event.shopping || { overrides: {}, manual: [], removed: [] };
+  const overrides = s.overrides || {};
+  const removed = new Set(s.removed || []);
+
+  const rows = auto
+    .filter((it) => !removed.has(it.ingredientId))
+    .map((it) => {
+      const ov = overrides[it.ingredientId];
+      const needed = typeof ov === "number" && ov >= 0 ? ov : it.needed;
+      return { ...it, needed, toBuy: Math.max(0, needed - it.stock), overridden: typeof ov === "number" && ov >= 0 };
+    });
+
+  const manual = (s.manual || []).map((m) => {
+    const qty = Math.max(0, Number(m.qty) || 0);
+    return {
+      id: m.id,
+      ingredientId: m.id,
+      name: m.label || "Ítem manual",
+      cat: "Manual",
+      unit: m.unit || "kg",
+      needed: qty,
+      toBuy: qty,
+      stock: 0,
+      supplierId: m.supplierId || null,
+      overridden: true,
+      manual: true,
+    };
+  });
+
+  return [...rows, ...manual].sort(
+    (a, b) => (a.manual ? 1 : 0) - (b.manual ? 1 : 0) || a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name)
+  );
+}
+
 export function eventBalance(event, db) {
   const pays = db.payments.filter((p) => p.eventId === event.id);
   const total = pays.reduce((s, p) => s + p.amount, 0);

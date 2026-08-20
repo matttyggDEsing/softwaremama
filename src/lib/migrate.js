@@ -1,6 +1,6 @@
 import { MODULE_DEFS } from "../data/seed.js";
 
-const CURRENT = 4;
+const CURRENT = 5;
 
 function moduleKind(key) {
   return MODULE_DEFS.find((m) => m.key === key)?.kind || "dish";
@@ -136,6 +136,13 @@ export function migrate(db) {
     d.events = (d.events || []).map((e) => ({
       ...e,
       specials: e.specials || [],
+    }));
+  }
+
+  if (from < 5) {
+    d.events = (d.events || []).map((e) => ({
+      ...e,
+      shopping: e.shopping || { overrides: {}, manual: [], removed: [] },
     }));
   }
 
