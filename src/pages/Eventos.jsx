@@ -4,6 +4,8 @@ import { useStore } from "../store.jsx";
 import { MODULE_DEFS } from "../data/seed.js";
 import { eventAnalysis, eventBalance, eventModules, shoppingList, configFromVariant, consumptionChecks } from "../lib/cost.js";
 import { money, dateStr, daysUntil, kg, units, todayISO, addDaysISO } from "../lib/format.js";
+import { uid } from "../lib/id.js";
+import { clamp } from "../lib/num.js";
 import { DocumentView } from "../components/Document.jsx";
 
 const STATUS_FLOW = ["consulta", "tentativo", "confirmado", "cerrado"];
@@ -32,13 +34,13 @@ export function EventosPage() {
   const create = () => {
     if (!form.name.trim()) return;
     const variant = menu?.variants.find((v) => v.id === form.variantId);
-    const id = `e${Date.now()}`;
+    const id = uid("e");
     add("events", {
       id,
       clientId: form.clientId,
       name: form.name.trim(),
       date: form.date,
-      guests: Number(form.guests) || 40,
+      guests: clamp(form.guests, 1),
       status: form.status,
       menuId: form.menuId,
       variantId: form.variantId,
@@ -200,8 +202,8 @@ function ResumenTab({ event }) {
 
   const save = () => {
     patch("events", event.id, {
-      name: form.name, date: form.date, guests: Number(form.guests) || 1,
-      seña: Number(form.seña) || 0, señaDate: form.señaDate, confirmDate: form.confirmDate, notes: form.notes,
+      name: form.name, date: form.date, guests: clamp(form.guests, 1),
+      seña: clamp(form.seña, 0), señaDate: form.señaDate, confirmDate: form.confirmDate, notes: form.notes,
     });
   };
 
@@ -536,11 +538,11 @@ function PersonalTab({ event }) {
   const [form, setForm] = useState({ staffId: db.staff[0]?.id || "", role: "", task: "", pay: "" });
 
   const addAssign = () => {
-    const pay = Number(form.pay);
+    const pay = clamp(form.pay, 0);
     add("assignments", {
-      id: `as${Date.now()}`, eventId: event.id, staffId: form.staffId,
+      id: uid("as"), eventId: event.id, staffId: form.staffId,
       role: form.role || db.staff.find((s) => s.id === form.staffId)?.role || "Servicio",
-      task: form.task || "—", pay: isNaN(pay) ? 0 : pay,
+      task: form.task || "—", pay,
     });
     setForm({ staffId: db.staff[0]?.id || "", role: "", task: "", pay: "" });
   };
@@ -609,9 +611,9 @@ function PagosTab({ event }) {
   const [refValue, setRefValue] = useState(db.settings.señaReference);
 
   const addPay = () => {
-    const amount = Number(form.amount);
-    if (isNaN(amount) || amount <= 0) return;
-    add("payments", { id: `p${Date.now()}`, eventId: event.id, concept: form.concept, amount, date: form.date });
+    const amount = clamp(form.amount, 0);
+    if (amount <= 0) return;
+    add("payments", { id: uid("p"), eventId: event.id, concept: form.concept, amount, date: form.date });
     setForm({ concept: "Seña", amount: "", date: todayISO() });
   };
 

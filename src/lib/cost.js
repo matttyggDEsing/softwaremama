@@ -116,7 +116,7 @@ export function consumptionChecks(recipe, ingredients, type, table) {
   });
   return Object.keys(grams).map((c) => {
     const ref = table[c];
-    const range = ref ? ref[type] : null;
+    const range = ref ? ref[type] || ref.mesa : null;
     const g = Math.round(grams[c]);
     return {
       component: c,

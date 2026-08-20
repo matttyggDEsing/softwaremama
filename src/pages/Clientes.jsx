@@ -3,6 +3,7 @@ import { Card, Btn, Icon, SearchInput, Empty, Badge, StatusPill, Field, Input, T
 import { useStore } from "../store.jsx";
 import { shoppingList } from "../lib/cost.js";
 import { money, kg, units, dateStr } from "../lib/format.js";
+import { uid } from "../lib/id.js";
 
 export function ClientesPage() {
   const { db, navigate, add } = useStore();
@@ -18,7 +19,7 @@ export function ClientesPage() {
 
   const create = () => {
     if (!name.trim()) return;
-    const id = `c${Date.now()}`;
+    const id = uid("c");
     add("clients", { id, name: name.trim(), phone, email, address: "", notes: "" });
     setNuevo(false);
     setName("");

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Card, Badge, Icon, Field, Input, Btn } from "../components/ui.jsx";
 import { useStore } from "../store.jsx";
 import { money, dateStr } from "../lib/format.js";
+import { uid } from "../lib/id.js";
+import { clamp } from "../lib/num.js";
 
 export default function PersonalPage() {
   const { db, navigate } = useStore();
@@ -96,7 +98,7 @@ function NuevoStaff() {
 
   const create = () => {
     if (!name.trim()) return;
-    add("staff", { id: `s${Date.now()}`, name: name.trim(), role: role || "Servicio", phone, payBase: Number(pay) || 0 });
+    add("staff", { id: uid("s"), name: name.trim(), role: role || "Servicio", phone, payBase: clamp(pay, 0) });
     setName(""); setRole(""); setPhone(""); setPay("");
   };
 

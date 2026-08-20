@@ -5,6 +5,8 @@ import { MODULE_DEFS } from "../data/seed.js";
 import { menuVariantAnalysis, configFromVariant, eventAnalysis, consumptionChecks, dishCost, dishPrice } from "../lib/cost.js";
 import { money } from "../lib/format.js";
 import { todayISO, addDaysISO } from "../lib/format.js";
+import { uid } from "../lib/id.js";
+import { clamp } from "../lib/num.js";
 
 function TempConfigurator({ config, setConfig, guests, setGuests }) {
   const { db } = useStore();
@@ -246,10 +248,10 @@ function CalculadorTab() {
   const tempEvent = { id: "tmp", guests: Number(guests) || 1, modules: config };
 
   const saveAsEvent = () => {
-    const id = `e${Date.now()}`;
+    const id = uid("e");
     add("events", {
       id, clientId: db.clients[0].id, name: `${menu.name} · ${variant?.name}`, date: addDaysISO(todayISO(), 21),
-      guests: Number(guests) || 1, status: "consulta", menuId, variantId, seña: db.settings.señaReference,
+      guests: clamp(guests, 1), status: "consulta", menuId, variantId, seña: db.settings.señaReference,
       señaDate: addDaysISO(addDaysISO(todayISO(), 21), -10), confirmDate: addDaysISO(addDaysISO(todayISO(), 21), -7),
       notes: "Creado desde el calculador de costos.", modules: config,
     });
