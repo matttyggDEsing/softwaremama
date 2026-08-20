@@ -443,6 +443,16 @@ input, select, textarea {
   background: var(--crema);
 }
 
+.btn-danger {
+  background: var(--rojo);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(179, 64, 46, 0.3);
+}
+
+.btn-danger:hover {
+  background: #a23828;
+}
+
 .btn-sm {
   min-height: 38px;
   padding: 0 12px;
@@ -475,6 +485,52 @@ input, select, textarea {
 .icon-btn:hover {
   background: var(--crema);
   color: var(--negro);
+}
+
+.icon-btn.danger:hover {
+  background: #f7e7e3;
+  color: var(--rojo);
+}
+
+.card-toolbar {
+  padding: 16px 20px 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-toolbar .search {
+  flex: 1;
+  min-width: 240px;
+  max-width: 420px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.usage-list {
+  list-style: none;
+  margin: 8px 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--sep);
+  border-radius: var(--radius-sm);
+  background: var(--crema);
+  font-size: 15px;
+  color: var(--grafito);
 }
 
 .link-btn {

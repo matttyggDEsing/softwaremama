@@ -1,44 +1,180 @@
 import { useState } from "react";
-import { Card, Badge, Icon, Select, Field, Empty, SearchInput, Dot } from "../components/ui.jsx";
+import { Card, Badge, Icon, Select, Field, Empty, SearchInput, Dot, Btn, Input, Modal } from "../components/ui.jsx";
 import { useStore } from "../store.jsx";
 import { shoppingList } from "../lib/cost.js";
 import { money, kg, units, dateStr } from "../lib/format.js";
+import { uid } from "../lib/id.js";
+import { clamp } from "../lib/num.js";
+
+const COMPONENTES = [
+  { key: "proteina", label: "Proteína" },
+  { key: "guarnicion", label: "Guarnición" },
+  { key: "ensalada", label: "Ensalada" },
+  { key: "postre", label: "Postre" },
+  { key: "otro", label: "Otro" },
+];
+
+const UNIDADES = ["kg", "l", "uni"];
 
 function stockTone(stock, min) {
   if (stock < min) return { tone: "red", label: "Bajo" };
   return { tone: "green", label: "OK" };
 }
 
-function StockTab() {
-  const { db, patch } = useStore();
-  const [q, setQ] = useState("");
+function emptyForm(db) {
+  return {
+    name: "",
+    component: "otro",
+    cat: "Almacén",
+    unit: "kg",
+    cost: "",
+    stock: "",
+    min: "",
+    supplierId: db.suppliers[0]?.id || "",
+  };
+}
 
-  const insumos = db.ingredients.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
+function IngredienteForm({ initial, onSubmit, onCancel, submitLabel }) {
+  const { db } = useStore();
+  const [form, setForm] = useState(initial);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const valid = form.name.trim() !== "";
+
+  const save = () => {
+    if (!valid) return;
+    onSubmit({
+      name: form.name.trim(),
+      component: form.component,
+      cat: form.cat.trim() || "Otros",
+      unit: form.unit,
+      cost: clamp(form.cost, 0),
+      stock: clamp(form.stock, 0),
+      min: clamp(form.min, 0),
+      supplierId: form.supplierId,
+    });
+  };
+
+  return (
+    <div className="form">
+      <Field label="Nombre">
+        <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ej. Filet de merluza" autoFocus />
+      </Field>
+      <div className="grid-2">
+        <Field label="Componente">
+          <Select value={form.component} onChange={(e) => set("component", e.target.value)}>
+            {COMPONENTES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </Select>
+        </Field>
+        <Field label="Categoría">
+          <Input value={form.cat} onChange={(e) => set("cat", e.target.value)} placeholder="Ej. Carnes" />
+        </Field>
+      </div>
+      <div className="grid-2">
+        <Field label="Unidad">
+          <Select value={form.unit} onChange={(e) => set("unit", e.target.value)}>
+            {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+          </Select>
+        </Field>
+        <Field label="Proveedor de referencia">
+          <Select value={form.supplierId} onChange={(e) => set("supplierId", e.target.value)}>
+            {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </Select>
+        </Field>
+      </div>
+      <div className="grid-3">
+        <Field label="Costo por unidad">
+          <Input type="number" min="0" step="50" value={form.cost} onChange={(e) => set("cost", e.target.value)} placeholder="0" />
+        </Field>
+        <Field label="Stock actual">
+          <Input type="number" min="0" value={form.stock} onChange={(e) => set("stock", e.target.value)} placeholder="0" />
+        </Field>
+        <Field label="Mínimo">
+          <Input type="number" min="0" value={form.min} onChange={(e) => set("min", e.target.value)} placeholder="0" />
+        </Field>
+      </div>
+      <div className="form-actions">
+        <Btn onClick={save} disabled={!valid}>{submitLabel}</Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+}
+
+function StockTab() {
+  const { db, add, patch, remove } = useStore();
+  const [q, setQ] = useState("");
+  const [nuevo, setNuevo] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [borrando, setBorrando] = useState(null);
+
+  const insumos = db.ingredients
+    .filter((i) => `${i.name} ${i.cat}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name));
   const lowInsumos = db.ingredients.filter((i) => i.stock < i.min).length;
   const lowEq = db.equipment.filter((e) => e.qty < e.min).length;
+
+  const usedBy = (id) => db.recipes.filter((r) => r.items.some((it) => it.ingredientId === id));
+  const enUso = borrando ? usedBy(borrando.id) : [];
+  const valorStock = db.ingredients.reduce((s, i) => s + i.stock * i.cost, 0);
+
+  const create = (data) => {
+    add("ingredients", { id: uid("ing"), ...data });
+    setNuevo(false);
+  };
+
+  const saveEdit = (data) => {
+    patch("ingredients", editando.id, data);
+    setEditando(null);
+  };
+
+  const confirmarBorrado = () => {
+    remove("ingredients", borrando.id);
+    setBorrando(null);
+  };
 
   return (
     <div className="stack">
       <div className="stats-grid">
         <div className="stat"><span className="stat-label">Insumos en stock</span><span className="stat-value">{db.ingredients.length}</span><span className="stat-sub">{lowInsumos} bajo mínimo</span></div>
         <div className="stat"><span className="stat-label">Equipamiento</span><span className="stat-value">{db.equipment.length}</span><span className="stat-sub">{lowEq} bajo mínimo</span></div>
-        <div className="stat"><span className="stat-label">Valor de stock (insumos)</span><span className="stat-value">{money(db.ingredients.reduce((s, i) => s + i.stock * i.cost, 0))}</span></div>
+        <div className="stat"><span className="stat-label">Valor de stock (insumos)</span><span className="stat-value">{money(valorStock)}</span></div>
       </div>
 
-      <Card title="Insumos" actions={<Badge tone={lowInsumos > 0 ? "red" : "green"} icon={lowInsumos > 0 ? "bell" : "check"}>{lowInsumos > 0 ? `${lowInsumos} bajos` : "stock OK"}</Badge>}>
-        <SearchInput value={q} onChange={setQ} placeholder="Buscar insumo…" />
+      <Card
+        title="Insumos"
+        actions={
+          <>
+            <Badge tone={lowInsumos > 0 ? "red" : "green"} icon={lowInsumos > 0 ? "bell" : "check"}>{lowInsumos > 0 ? `${lowInsumos} bajos` : "stock OK"}</Badge>
+            <Btn icon="plus" onClick={() => setNuevo(true)}>Nuevo insumo</Btn>
+          </>
+        }
+      >
+        <div className="card-toolbar">
+          <SearchInput value={q} onChange={setQ} placeholder="Buscar insumo…" />
+        </div>
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>Insumo</th><th>Componente</th><th className="right">Costo</th><th className="right">Stock</th><th className="right">Mínimo</th><th>Estado</th></tr>
+              <tr>
+                <th>Insumo</th>
+                <th>Componente</th>
+                <th className="right">Costo</th>
+                <th className="right">Stock</th>
+                <th className="right">Mínimo</th>
+                <th>Estado</th>
+                <th />
+              </tr>
             </thead>
             <tbody>
               {insumos.map((i) => {
                 const st = stockTone(i.stock, i.min);
                 return (
                   <tr key={i.id}>
-                    <td><strong>{i.name}</strong> <span className="muted">({i.cat})</span></td>
-                    <td>{i.component}</td>
+                    <td>
+                      <strong>{i.name}</strong>
+                      <span className="muted"> · {i.cat}</span>
+                    </td>
+                    <td>{COMPONENTES.find((c) => c.key === i.component)?.label || i.component}</td>
                     <td className="right">{money(i.cost)}/{i.unit}</td>
                     <td className="right">
                       <input
@@ -46,15 +182,21 @@ function StockTab() {
                         type="number"
                         min="0"
                         value={i.stock}
-                        onChange={(e) => patch("ingredients", i.id, { stock: Number(e.target.value) })}
+                        onChange={(e) => patch("ingredients", i.id, { stock: clamp(e.target.value, 0) })}
                       />
                     </td>
                     <td className="right">{i.min} {i.unit}</td>
                     <td><Badge tone={st.tone}><Dot tone={st.tone} /> {st.label}</Badge></td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="icon-btn" onClick={() => setEditando(i)} aria-label="Editar"><Icon name="edit" size={16} /></button>
+                        <button className="icon-btn danger" onClick={() => setBorrando(i)} aria-label="Eliminar"><Icon name="trash" size={16} /></button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
-              {insumos.length === 0 && <tr><td colSpan={6} className="muted">Sin resultados.</td></tr>}
+              {insumos.length === 0 && <tr><td colSpan={7} className="muted">Sin resultados.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -79,7 +221,7 @@ function StockTab() {
                         type="number"
                         min="0"
                         value={e.qty}
-                        onChange={(ev) => patch("equipment", e.id, { qty: Number(ev.target.value) })}
+                        onChange={(ev) => patch("equipment", e.id, { qty: clamp(ev.target.value, 0) })}
                       />
                     </td>
                     <td className="right">{e.min}</td>
@@ -91,6 +233,59 @@ function StockTab() {
           </table>
         </div>
       </Card>
+
+      <Modal open={nuevo} onClose={() => setNuevo(false)} title="Nuevo insumo">
+        <IngredienteForm
+          initial={emptyForm(db)}
+          onSubmit={create}
+          onCancel={() => setNuevo(false)}
+          submitLabel="Crear insumo"
+        />
+      </Modal>
+
+      <Modal open={!!editando} onClose={() => setEditando(null)} title={`Editar: ${editando?.name || ""}`}>
+        {editando && (
+          <IngredienteForm
+            initial={{
+              name: editando.name,
+              component: editando.component,
+              cat: editando.cat,
+              unit: editando.unit,
+              cost: editando.cost,
+              stock: editando.stock,
+              min: editando.min,
+              supplierId: editando.supplierId,
+            }}
+            onSubmit={saveEdit}
+            onCancel={() => setEditando(null)}
+            submitLabel="Guardar cambios"
+          />
+        )}
+      </Modal>
+
+      <Modal open={!!borrando} onClose={() => setBorrando(null)} title={`Eliminar: ${borrando?.name || ""}`}>
+        {enUso.length > 0 ? (
+          <div className="form">
+            <p className="muted">
+              Este insumo se usa en las siguientes recetas. <strong>No se puede eliminar</strong> porque rompería su costo:
+            </p>
+            <ul className="usage-list">
+              {enUso.map((r) => <li key={r.id}><Icon name="utensils" size={15} /> {r.name}</li>)}
+            </ul>
+            <div className="form-actions">
+              <Btn variant="outline" onClick={() => setBorrando(null)}>Entendido</Btn>
+            </div>
+          </div>
+        ) : (
+          <div className="form">
+            <p className="muted">¿Eliminar este insumo? La operación no se puede deshacer.</p>
+            <div className="form-actions">
+              <Btn variant="danger" onClick={confirmarBorrado}><Icon name="trash" size={16} /> Eliminar</Btn>
+              <Btn variant="ghost" onClick={() => setBorrando(null)}>Cancelar</Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
