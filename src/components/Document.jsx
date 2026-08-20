@@ -60,8 +60,19 @@ function Presupuesto({ event, client, analysis, biz, db }) {
                 <span className="doc-sub2">{r.items.map((i) => i.ref).join(", ")}</span>
               </td>
               <td>{money(r.price)}</td>
-              <td className="right">{event.guests} pers.</td>
-              <td className="right">{money(r.price * event.guests)}</td>
+              <td className="right">{analysis.standardGuests} pers.</td>
+              <td className="right">{money(r.price * analysis.standardGuests)}</td>
+            </tr>
+          ))}
+          {analysis.specials.map((sp) => (
+            <tr key={sp.id}>
+              <td>
+                <strong>{sp.label}</strong>
+                <span className="doc-sub2">Especial · {sp.ref}</span>
+              </td>
+              <td>{money(sp.pricePerUnit)}</td>
+              <td className="right">{sp.qty} pers.</td>
+              <td className="right">{money(sp.price)}</td>
             </tr>
           ))}
         </tbody>
@@ -88,7 +99,7 @@ function Contrato({ event, client, analysis, biz, db }) {
       {eventBrief(event, client)}
       <div className="doc-clauses">
         <p><strong>1.</strong> JAFET Eventos prestará el servicio de catering para el evento <strong>{event.name}</strong> el día <strong>{dateStr(event.date)}</strong> para <strong>{event.guests}</strong> invitados.</p>
-        <p><strong>2.</strong> El menú acordado es: {analysis.rows.filter((r) => r.active).map((r) => `${r.label} (${r.items.map((i) => i.ref).join(", ")})`).join(" · ")}.</p>
+        <p><strong>2.</strong> El menú acordado es: {analysis.rows.filter((r) => r.active).map((r) => `${r.label} (${r.items.map((i) => i.ref).join(", ")})`).join(" · ")}{analysis.specials.length > 0 ? `, más platos exclusivos: ${analysis.specials.map((sp) => `${sp.label} (${sp.qty} pers.)`).join(", ")}` : ""}.</p>
         <p><strong>3.</strong> El precio total del servicio es de <strong>{money(analysis.price)}</strong> ({money(analysis.pricePerPerson)} por persona).</p>
         <p><strong>4.</strong> Se abona una seña de <strong>{money(event.seña)}</strong> como reserva de fecha. El saldo se paga {event.status === "cerrado" ? "al finalizar el evento" : "hasta 7 días antes del evento"}.</p>
         <p><strong>5.</strong> La cantidad final de invitados se confirma hasta 7 días antes del evento y se factura sobre esa cantidad (referencia de seña actual: {money(db.settings.señaReference)}).</p>
@@ -131,7 +142,7 @@ function Produccion({ event, analysis, db }) {
 
       {analysis.rows.filter((r) => r.active).map((mod) => (
         <div className="prod-mod" key={mod.key}>
-          <h3>{mod.label} <span className="prod-qty">{event.guests} pers.</span></h3>
+          <h3>{mod.label} <span className="prod-qty">{analysis.standardGuests} pers.</span></h3>
           {mod.items.map((it) => (
             <div className="prod-recipe" key={it.ref}>
               <strong>{it.ref}</strong>
@@ -140,7 +151,7 @@ function Produccion({ event, analysis, db }) {
                   const ing = ingredients.find((i) => i.id === rIt.ingredientId);
                   if (!ing) return null;
                   const factor = section(mod, "") === "buffet" ? 1 + db.settings.buffetSafety : 1;
-                  const total = rIt.u ? rIt.u * event.guests * factor : (rIt.g / 1000) * event.guests * factor;
+                  const total = rIt.u ? rIt.u * analysis.standardGuests * factor : (rIt.g / 1000) * analysis.standardGuests * factor;
                   return (
                     <span key={ing.id}>
                       <em>{ing.name}</em>
@@ -153,6 +164,30 @@ function Produccion({ event, analysis, db }) {
           ))}
         </div>
       ))}
+
+      {analysis.specials.length > 0 && (
+        <div className="prod-mod">
+          <h3>Platos exclusivos <span className="prod-qty">{analysis.specials.reduce((s, x) => s + x.qty, 0)} pers.</span></h3>
+          {analysis.specials.map((sp) => (
+            <div className="prod-recipe" key={sp.id}>
+              <strong>{sp.label} · {sp.ref}</strong>
+              <div className="prod-table">
+                {sp.recipe?.items.map((rIt) => {
+                  const ing = ingredients.find((i) => i.id === rIt.ingredientId);
+                  if (!ing) return null;
+                  const total = rIt.u ? rIt.u * sp.qty : (rIt.g / 1000) * sp.qty;
+                  return (
+                    <span key={ing.id}>
+                      <em>{ing.name}</em>
+                      <strong>{rIt.u ? units(total) : kg(total)}</strong>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

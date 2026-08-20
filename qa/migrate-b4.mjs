@@ -23,7 +23,7 @@ Promise.all([
   };
   const out1 = m.migrate(v1);
   ok(`v1 -> version ${out1.version}`);
-  out1.version !== 3 && fail('version != 3');
+  out1.version !== 4 && fail('version != 4');
   const menu1 = out1.menus.find((x) => x.id === "m1v1");
   if (!menu1) return fail('menu m1v1 no existe');
   if (!menu1.modules.postre.on || menu1.modules.postre.dishIds[0] !== "d1") fail('menu postre no migrado: ' + JSON.stringify(menu1.modules.postre));

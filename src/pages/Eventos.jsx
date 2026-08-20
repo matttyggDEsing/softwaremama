@@ -45,6 +45,7 @@ export function EventosPage() {
       señaDate: addDaysISO(form.date, -10),
       confirmDate: addDaysISO(form.date, -7),
       notes: "",
+      specials: [],
       modules: configFromMenu(menu),
     });
     setNuevo(false);
@@ -298,12 +299,76 @@ function StatBox({ label, value, tone }) {
   );
 }
 
+function SpecialForm({ onSubmit, onCancel }) {
+  const { db } = useStore();
+  const [form, setForm] = useState({ label: "", qty: 1, kind: "dish", dishId: "", recipeId: "" });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const itemId = form.kind === "dish" ? form.dishId : form.recipeId;
+  const valid = clamp(form.qty, 0) > 0 && !!itemId;
+
+  const save = () => {
+    if (!valid) return;
+    const dish = form.kind === "dish" ? db.dishes.find((d) => d.id === form.dishId) : null;
+    const recipe = form.kind === "recipe" ? db.recipes.find((r) => r.id === form.recipeId) : null;
+    onSubmit({
+      id: uid("sp"),
+      label: form.label.trim() || dish?.name || recipe?.name || "Especial",
+      qty: clamp(form.qty, 1),
+      dishId: form.kind === "dish" ? form.dishId : null,
+      recipeId: form.kind === "recipe" ? form.recipeId : null,
+    });
+  };
+
+  return (
+    <div className="form">
+      <div className="grid-2">
+        <Field label="Etiqueta (opcional)">
+          <Input value={form.label} onChange={(e) => set("label", e.target.value)} placeholder="Ej. Opción vegana" />
+        </Field>
+        <Field label="Cantidad de porciones">
+          <Input type="number" min="1" value={form.qty} onChange={(e) => set("qty", e.target.value)} />
+        </Field>
+      </div>
+      <div className="grid-2">
+        <Field label="Tipo">
+          <Select value={form.kind} onChange={(e) => set("kind", e.target.value)}>
+            <option value="dish">Plato</option>
+            <option value="recipe">Receta (buffet)</option>
+          </Select>
+        </Field>
+        <Field label="Plato / Receta">
+          <Select value={itemId} onChange={(e) => set(form.kind === "dish" ? "dishId" : "recipeId", e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {form.kind === "dish"
+              ? db.dishes.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)
+              : db.recipes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </Select>
+        </Field>
+      </div>
+      <div className="form-actions">
+        <Btn onClick={save} disabled={!valid}>Agregar especial</Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+}
+
 function ModuleEditor({ event }) {
   const { db, add, remove, patch, setSettings } = useStore();
+  const [nuevoSpecial, setNuevoSpecial] = useState(false);
   const patchModule = (key, changes) =>
     patch("events", event.id, { modules: { ...event.modules, [key]: { ...event.modules[key], ...changes } } });
 
   const analysis = eventAnalysis(event, db);
+
+  const addSpecial = (data) => {
+    patch("events", event.id, { specials: [...(event.specials || []), data] });
+    setNuevoSpecial(false);
+  };
+
+  const removeSpecial = (id) => {
+    patch("events", event.id, { specials: (event.specials || []).filter((x) => x.id !== id) });
+  };
 
   const dishesFor = (mod) => db.dishes.filter((d) => d.module === mod);
   const recipesFor = (mod) => db.recipes.filter((r) => r.module === mod);
@@ -315,7 +380,7 @@ function ModuleEditor({ event }) {
       <div className="stats-grid">
         <StatBox label="Costo directo por persona" value={money(analysis.costPerPerson)} />
         <StatBox label="Precio por persona" value={money(analysis.pricePerPerson)} />
-        <StatBox label="Costo total ({event.guests} pers.)" value={money(analysis.cost)} />
+        <StatBox label={`Costo total (${analysis.standardGuests} pers. + especiales)`} value={money(analysis.cost)} />
         <StatBox label="Total del evento" value={money(analysis.price)} tone="green" />
       </div>
 
@@ -403,13 +468,52 @@ function ModuleEditor({ event }) {
                 </div>
                 <div className="module-total">
                   <span>{def.key === "buffet" ? `Incluye margen de seguridad buffet (+${Math.round(db.settings.buffetSafety * 100)}%)` : ""}</span>
-                  <strong>{money(analysis.rows.find((r) => r.key === def.key)?.price * event.guests || 0)}</strong>
+                  <strong>{money(analysis.rows.find((r) => r.key === def.key)?.price * analysis.standardGuests || 0)}</strong>
                 </div>
               </div>
             )}
           </Card>
         );
       })}
+
+      <Card
+        title="Platos exclusivos (vegano, celíaco, especiales)"
+        actions={<Btn icon="plus" onClick={() => setNuevoSpecial(true)}>Agregar especial</Btn>}
+      >
+        <p className="muted">
+          Restan de la cuenta general: {event.guests} invitados → {analysis.standardGuests} estándar + {analysis.specials.reduce((s, x) => s + x.qty, 0)} porciones especiales, que se facturan a su costo individual.
+        </p>
+        {analysis.specials.length > 0 ? (
+          <div className="table-wrap">
+            <table className="table table-sm">
+              <thead>
+                <tr><th>Especial</th><th className="right">Porciones</th><th className="right">Precio/pers.</th><th className="right">Total</th><th /></tr>
+              </thead>
+              <tbody>
+                {analysis.specials.map((sp) => (
+                  <tr key={sp.id}>
+                    <td><strong>{sp.label}</strong> <span className="muted">· {sp.ref}</span></td>
+                    <td className="right">{sp.qty}</td>
+                    <td className="right">{money(sp.pricePerUnit)}</td>
+                    <td className="right"><strong>{money(sp.price)}</strong></td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="icon-btn danger" onClick={() => removeSpecial(sp.id)} aria-label="Quitar especial"><Icon name="trash" size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">Sin platos exclusivos para este evento.</p>
+        )}
+
+        <Modal open={nuevoSpecial} onClose={() => setNuevoSpecial(false)} title="Agregar plato exclusivo">
+          <SpecialForm onSubmit={addSpecial} onCancel={() => setNuevoSpecial(false)} />
+        </Modal>
+      </Card>
 
       <Card title="Control de porciones vs. tabla de consumo">
         <p className="muted">Compara la receta con la referencia por persona (mesa o buffet) del módulo.</p>
@@ -458,7 +562,7 @@ function ComprasTab({ event }) {
   const waPhone = db.clients.find((c) => c.id === event.clientId)?.phone?.replace(/\D/g, "");
   const waText = encodeURIComponent(
     `Lista de compras — ${event.name} (${dateStr(event.date)}, ${event.guests} invitados):\n` +
-    pending.map((it) => `• ${it.name}: ${it.unit === "uni" ? units(it.needed) : kg(it.needed)}`).join("\n")
+    pending.map((it) => `• ${it.name}: ${it.unit === "uni" ? units(it.needed) : kg(it.needed * 1000)}`).join("\n")
   );
 
   return (
@@ -485,9 +589,9 @@ function ComprasTab({ event }) {
                       <input type="checkbox" className="ck" checked={done.has(it.ingredientId)} onChange={() => toggle(it.ingredientId)} />
                     </td>
                     <td><strong>{it.name}</strong> <span className="muted">({it.cat})</span></td>
-                    <td>{it.unit === "uni" ? units(it.needed) : kg(it.needed)}</td>
+                    <td>{it.unit === "uni" ? units(it.needed) : kg(it.needed * 1000)}</td>
                     <td className="right">{it.unit === "uni" ? units(it.stock) : kg(it.stock)}</td>
-                    <td className={`right ${it.toBuy > 0 ? "tone-amber" : "tone-green"}`}>{it.unit === "uni" ? units(it.toBuy) : kg(it.toBuy)}</td>
+                    <td className={`right ${it.toBuy > 0 ? "tone-amber" : "tone-green"}`}>{it.unit === "uni" ? units(it.toBuy) : kg(it.toBuy * 1000)}</td>
                     <td>{sup?.name || "—"}</td>
                   </tr>
                 );
@@ -502,7 +606,7 @@ function ComprasTab({ event }) {
         <p className="muted">Se abre WhatsApp con el mensaje listo para enviar:</p>
         <div className="wa-preview">
           <p>Lista de compras — {event.name} ({dateStr(event.date)}, {event.guests} invitados):</p>
-          {pending.map((it) => <p key={it.ingredientId}>• {it.name}: {it.unit === "uni" ? units(it.needed) : kg(it.needed)}</p>)}
+          {pending.map((it) => <p key={it.ingredientId}>• {it.name}: {it.unit === "uni" ? units(it.needed) : kg(it.needed * 1000)}</p>)}
         </div>
         <div className="form-actions">
           <Btn icon="whatsapp" onClick={() => window.open(`https://wa.me/${waPhone}?text=${waText}`, "_blank", "noopener")}>Abrir WhatsApp</Btn>

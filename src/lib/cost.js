@@ -47,6 +47,37 @@ export function configFromMenu(menu) {
   return out;
 }
 
+export function specialGuests(event) {
+  return (event.specials || []).reduce((s, x) => s + Math.max(0, x.qty || 0), 0);
+}
+
+export function specialItems(event, db) {
+  const { dishes, recipes, ingredients } = db;
+  return (event.specials || []).map((sp) => {
+    const dish = sp.dishId ? dishes.find((d) => d.id === sp.dishId) : null;
+    const recipe = dish
+      ? recipes.find((r) => r.id === dish.recipeId)
+      : sp.recipeId
+        ? recipes.find((r) => r.id === sp.recipeId)
+        : null;
+    const c = recipeCost(recipe, ingredients);
+    const p = c * (1 + (dish?.margin ?? 0));
+    const qty = Math.max(0, sp.qty || 0);
+    return {
+      id: sp.id,
+      label: sp.label || dish?.name || recipe?.name || "Especial",
+      ref: dish?.name || recipe?.name || sp.label || "—",
+      qty,
+      costPerUnit: c,
+      pricePerUnit: p,
+      cost: c * qty,
+      price: p * qty,
+      dish,
+      recipe,
+    };
+  });
+}
+
 export function eventAnalysis(event, db) {
   const { dishes, recipes, ingredients, settings } = db;
   const safety = settings.buffetSafety;
@@ -105,12 +136,19 @@ export function eventAnalysis(event, db) {
     price += mPrice;
   });
 
+  const specials = specialItems(event, db);
+  const standardGuests = Math.max(0, event.guests - specialGuests(event));
+  const specialCost = specials.reduce((s, x) => s + x.cost, 0);
+  const specialPrice = specials.reduce((s, x) => s + x.price, 0);
+
   return {
     rows,
+    specials,
+    standardGuests,
     costPerPerson: cost,
     pricePerPerson: price,
-    cost: cost * event.guests,
-    price: price * event.guests,
+    cost: cost * standardGuests + specialCost,
+    price: price * standardGuests + specialPrice,
   };
 }
 
@@ -142,6 +180,29 @@ export function shoppingList(event, db) {
   const safety = db.settings.buffetSafety;
   const acc = {};
 
+  const addRecipe = (recipe, qty) => {
+    if (!recipe || qty <= 0) return;
+    recipe.items.forEach((it) => {
+      const ing = ingredients.find((i) => i.id === it.ingredientId);
+      if (!ing) return;
+      const q = it.u ? it.u * qty : (it.g / 1000) * qty;
+      if (!acc[ing.id]) {
+        acc[ing.id] = {
+          ingredientId: ing.id,
+          name: ing.name,
+          cat: ing.cat,
+          unit: ing.unit,
+          needed: 0,
+          stock: ing.stock,
+          supplierId: ing.supplierId,
+        };
+      }
+      acc[ing.id].needed += q;
+    });
+  };
+
+  const standardGuests = Math.max(0, event.guests - specialGuests(event));
+
   eventModules(event).forEach((mod) => {
     if (!mod.on) return;
     const factor = mod.key === "buffet" ? 1 + safety : 1;
@@ -157,28 +218,12 @@ export function shoppingList(event, db) {
         const dish = dishes.find((d) => d.id === refId);
         recipeId = dish?.recipeId;
       }
-      const recipe = recipes.find((r) => r.id === recipeId);
-      if (!recipe) return;
-      recipe.items.forEach((it) => {
-        const ing = ingredients.find((i) => i.id === it.ingredientId);
-        if (!ing) return;
-        const qty = it.u
-          ? it.u * event.guests * factor
-          : (it.g / 1000) * event.guests * factor;
-        if (!acc[ing.id]) {
-          acc[ing.id] = {
-            ingredientId: ing.id,
-            name: ing.name,
-            cat: ing.cat,
-            unit: ing.unit,
-            needed: 0,
-            stock: ing.stock,
-            supplierId: ing.supplierId,
-          };
-        }
-        acc[ing.id].needed += qty;
-      });
+      addRecipe(recipes.find((r) => r.id === recipeId), standardGuests * factor);
     });
+  });
+
+  specialItems(event, db).forEach((sp) => {
+    addRecipe(sp.recipe, sp.qty);
   });
 
   return Object.values(acc)

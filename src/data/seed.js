@@ -213,6 +213,7 @@ export function makeSeed() {
       id: "e1", clientId: "c1", name: "Cumpleaños de 70", date: "2026-08-30", guests: 45, status: "confirmado",
       menuId: "m1v1", señaDate: "2026-08-20", seña: 100000, confirmDate: "2026-08-20",
       notes: "Cumpleaños en el quincho de la familia. Confirmar cantidad final el 27/08.",
+      specials: [],
       modules: {
         entrada: { on: true, dishId: "d_emp1" },
         principal: { on: true, dishId: "d_pri1" },
@@ -225,6 +226,7 @@ export function makeSeed() {
       id: "e2", clientId: "c2", name: "Casamiento", date: "2026-09-19", guests: 80, status: "tentativo",
       menuId: "m3v2", señaDate: "2026-08-24", seña: 150000, confirmDate: null,
       notes: "Salón en Pilar. Pendiente reservar mesa dulce vegana.",
+      specials: [],
       modules: {
         entrada: { on: true, dishId: "d_emp1" },
         principal: { on: true, dishId: "d_pri3" },
@@ -237,6 +239,7 @@ export function makeSeed() {
       id: "e3", clientId: "c3", name: "Cena de fin de año", date: "2026-09-05", guests: 60, status: "consulta",
       menuId: "m2v1", señaDate: "2026-08-26", seña: 100000, confirmDate: "2026-08-28",
       notes: "Esperando aprobación de comisión. Presupuesto enviado.",
+      specials: [],
       modules: {
         entrada: { on: false, dishId: null },
         principal: { on: false, dishId: null },
@@ -249,6 +252,7 @@ export function makeSeed() {
       id: "e4", clientId: "c4", name: "Bautismo", date: "2026-07-18", guests: 30, status: "cerrado",
       menuId: "m1v2", señaDate: "2026-06-20", seña: 80000, confirmDate: "2026-07-01",
       notes: "Evento finalizado. Cliente conforme, repite anualmente.",
+      specials: [],
       modules: {
         entrada: { on: true, dishId: "d_emp2" },
         principal: { on: true, dishId: "d_pri2" },
@@ -275,7 +279,7 @@ export function makeSeed() {
   };
 
   return {
-    version: 3,
+    version: 4,
     ingredients,
     recipes,
     dishes,

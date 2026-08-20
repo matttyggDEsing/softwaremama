@@ -153,7 +153,7 @@ export function ClienteDetail({ id }) {
                   <tr key={it.ingredientId}>
                     <td><strong>{it.name}</strong></td>
                     <td>{it.cat}</td>
-                    <td className="right">{it.unit === "uni" ? units(it.needed) : kg(it.needed)}</td>
+                    <td className="right">{it.unit === "uni" ? units(it.needed) : kg(it.needed * 1000)}</td>
                     <td className="muted">{it.unit}</td>
                   </tr>
                 ))}
